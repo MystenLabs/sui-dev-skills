@@ -1,0 +1,5 @@
+# Eval workspace outputs
+*-workspace/
+
+# Claude Code auto-memory (personal)
+.claude/projects/
