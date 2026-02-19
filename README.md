@@ -10,17 +10,27 @@ A collection of Claude skills for Sui development. Each skill is modular and can
 | `sdk/` | TypeScript SDK — transaction building, signing, querying | 🔜 Coming soon |
 | `frontend/` | Frontend integration — wallet adapters, dApp kit, React patterns | 🔜 Coming soon |
 
-## Using skills in your project
+## Installation
 
-Reference whichever skills you need in your project's `CLAUDE.md`:
+### Global install (recommended — works across all your projects)
 
-```markdown
-# My Sui Project
-
-@~/sui-dev-skills/sui-move/SKILL.md
+```bash
+git clone https://github.com/MystenLabs/sui-dev-skills ~/.claude/skills/sui-dev-skills
 ```
 
-For a full-stack dapp, compose multiple skills:
+Claude Code auto-discovers skills in `~/.claude/skills/` and activates them automatically based on context.
+
+### Project-local install (commit to your repo)
+
+```bash
+git clone https://github.com/MystenLabs/sui-dev-skills .claude/skills/sui-dev-skills
+```
+
+Commit it to share the skill with your whole team — anyone who opens the project in Claude Code gets it automatically.
+
+### Composing skills
+
+For full-stack Sui dapps, install all skills and Claude will activate whichever are relevant. You can also pin specific skills in your `CLAUDE.md`:
 
 ```markdown
 # My Sui Dapp

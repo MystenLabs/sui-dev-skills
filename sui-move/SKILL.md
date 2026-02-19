@@ -1,3 +1,8 @@
+---
+name: sui-move
+description: Sui Move 2024 smart contract development. Use when writing, reviewing, or debugging Sui Move code, Move.toml configuration, or Sui object model patterns.
+---
+
 # Sui Move Development Skill
 
 You are writing Sui Move smart contracts. Follow these rules precisely. Sui Move is **not** Aptos Move and is **not** Rust — do not apply patterns from those languages.
