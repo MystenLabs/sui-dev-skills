@@ -8,7 +8,7 @@ A collection of Claude skills for Sui development. Each skill is modular and can
 |-------|-------------|--------|
 | [`sui-move/`](./sui-move/) | Idiomatic Sui Move 2024 — object model, modern syntax, testing | ✅ Ready |
 | [`sui-ts-sdk/`](./sui-ts-sdk/) | TypeScript SDK v2 — PTB construction, client setup, transaction execution, on-chain queries | ✅ Ready |
-| `frontend/` | Frontend integration — wallet adapters, dApp kit, React patterns | 🔜 Coming soon |
+| [`sui-frontend/`](./sui-frontend/) | Frontend integration — dApp Kit, wallet connection, React hooks, on-chain queries from the browser | ✅ Ready |
 
 ## Installation
 
@@ -37,7 +37,7 @@ For full-stack Sui dapps, install all skills and Claude will activate whichever 
 
 @~/sui-dev-skills/sui-move/SKILL.md
 @~/sui-dev-skills/sui-ts-sdk/SKILL.md
-@~/sui-dev-skills/frontend/SKILL.md
+@~/sui-dev-skills/sui-frontend/SKILL.md
 ```
 
 Claude reads all referenced skills before starting work, so it will apply conventions from all of them.
@@ -58,6 +58,9 @@ Then tell Claude:
 >
 > Or for the TypeScript SDK skill:
 > "Use the skill-creator to run evals on the skill at `./sui-dev-skills/sui-ts-sdk/`"
+>
+> Or for the frontend skill:
+> "Use the skill-creator to run evals on the skill at `./sui-dev-skills/sui-frontend/`"
 
 Eval workspace outputs are written to a sibling directory (e.g. `sui-move-workspace/`) and are gitignored.
 
