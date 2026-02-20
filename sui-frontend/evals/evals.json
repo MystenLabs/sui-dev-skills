@@ -1,0 +1,83 @@
+{
+  "skill_name": "sui-frontend",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Set up the provider boilerplate for a new React + Vite app that connects to the Sui testnet. The app should: 1) Install the correct packages. 2) Create a network.ts file that configures testnet and mainnet using the correct client for dApp Kit. 3) Wrap the app in the correct provider hierarchy with autoConnect enabled. 4) Add a ConnectButton to the header. 5) Show the connected wallet address below the header, or a prompt to connect if no wallet is connected.",
+      "expected_output": "A set of TypeScript/TSX files including network.ts, an updated App.tsx or main.tsx with the three-provider hierarchy in the correct order, a Header component with ConnectButton, and a component that conditionally renders the address or a connect prompt.",
+      "assertions": [
+        "Installs @mysten/dapp-kit, @mysten/sui, and @tanstack/react-query",
+        "Imports SuiJsonRpcClient and getJsonRpcFullnodeUrl from '@mysten/sui/jsonRpc' (not SuiClient, getFullnodeUrl, or SuiGrpcClient)",
+        "SuiJsonRpcClient is constructed with both url and network parameters for each network entry",
+        "Does NOT use SuiGrpcClient in the network config or SuiClientProvider",
+        "Provider order is: QueryClientProvider wraps SuiClientProvider wraps WalletProvider (not any other order)",
+        "Imports '@mysten/dapp-kit/dist/index.css' somewhere in the setup",
+        "WalletProvider has autoConnect prop",
+        "ConnectButton is imported from '@mysten/dapp-kit'",
+        "Uses useCurrentAccount to read the connected address",
+        "Null-checks the result of useCurrentAccount before accessing account.address",
+        "Renders a connect prompt (e.g. ConnectButton or message) when account is null"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Write a React component called 'Portfolio' that displays the connected wallet's SUI balance and a list of all objects they own. The balance should show in SUI (not MIST). The object list should support pagination \u2014 show a 'Load more' button if there are more pages. Handle loading and error states for both queries.",
+      "expected_output": "A React component that uses useSuiClientQuery for the balance (with MIST-to-SUI conversion) and useSuiClientInfiniteQuery for owned objects with a load-more button, including proper loading/error handling and an enabled guard for the wallet-not-connected case.",
+      "assertions": [
+        "Uses useCurrentAccount and null-checks account before running queries",
+        "Uses useSuiClientQuery with method 'getBalance' and coinType '0x2::sui::SUI' for the balance",
+        "Passes enabled: !!account to the balance query to prevent it firing before wallet connects",
+        "Converts MIST to SUI (divides by 1_000_000_000 or 1e9)",
+        "Uses useSuiClientInfiniteQuery with method 'getOwnedObjects' for the object list",
+        "Passes enabled: !!account to the infinite query",
+        "Provides a getNextPageParam callback that returns lastPage.nextCursor when lastPage.hasNextPage is true, and null/undefined otherwise",
+        "Flattens data.pages to get all loaded objects (e.g. data?.pages.flatMap(p => p.data))",
+        "Renders a 'Load more' button that calls fetchNextPage, hidden or disabled when !hasNextPage",
+        "Handles isPending / isLoading state for both queries (shows loading indicator)",
+        "Handles error state for both queries"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Write a React component called 'SwapButton' that lets the connected user swap 1 SUI for a token by calling a Move function '0xDEAD::dex::swap'. The swap function takes a shared DEX object (ID: 0xDEX), a Coin<SUI> payment, and returns a Coin<TOKEN> (type: 0xDEAD::token::TOKEN). Transfer the returned token to the user. After the transaction succeeds, invalidate the wallet's balance query so the UI refreshes. Show a loading state while the transaction is pending. Show an error message if it fails.",
+      "expected_output": "A React component using useSignAndExecuteTransaction that builds a PTB with splitCoins, moveCall (capturing the return value), and transferObjects, then invalidates the balance query after waiting for indexing.",
+      "assertions": [
+        "Imports Transaction from '@mysten/sui/transactions'",
+        "Imports useSignAndExecuteTransaction from '@mysten/dapp-kit'",
+        "Imports useSuiClient and useCurrentAccount from '@mysten/dapp-kit'",
+        "Uses useQueryClient from '@tanstack/react-query' for cache invalidation",
+        "Builds a PTB with tx.splitCoins(tx.gas, [...]) to create the payment coin",
+        "Uses tx.moveCall with target '0xDEAD::dex::swap'",
+        "Passes the DEX shared object as tx.object('0xDEX')",
+        "Passes the split coin result as the coin argument to moveCall (result chaining, not a string ID)",
+        "Includes typeArguments containing '0x2::sui::SUI' and '0xDEAD::token::TOKEN'",
+        "Captures the return value from moveCall and passes it to tx.transferObjects",
+        "Calls client.waitForTransaction before invalidating queries",
+        "Invalidates balance or owned-object queries after the transaction succeeds",
+        "Uses isPending from useSignAndExecuteTransaction to show a loading state on the button",
+        "Handles onError to display an error message to the user",
+        "Disables the button when !account or isPending"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "Build a small 'Sign In with Sui' flow as a React component. When the user clicks 'Sign In', generate a random nonce on the client side, ask the wallet to sign the message 'Sign in to MyApp\\nnonce: <nonce>', then POST the address, bytes, and signature to '/api/auth' as JSON. Show status messages: 'Idle', 'Waiting for signature...', 'Verifying...', and 'Signed in as 0x...' or an error. Also add a network switcher dropdown that shows the current network and lets the user switch between mainnet and testnet.",
+      "expected_output": "A React component using useSignPersonalMessage for the sign-in flow with status tracking, and a network switcher using useSuiClientContext. The message should be properly encoded as bytes before signing.",
+      "assertions": [
+        "Imports useSignPersonalMessage from '@mysten/dapp-kit'",
+        "Imports useSuiClientContext from '@mysten/dapp-kit'",
+        "Imports useCurrentAccount from '@mysten/dapp-kit'",
+        "Encodes the sign-in message to bytes using TextEncoder before passing to signMessage",
+        "Passes the encoded bytes as the message field to useSignPersonalMessage's mutate function",
+        "Tracks a status state with at least 'idle', 'signing', and 'verifying' states",
+        "Sets status to a 'waiting' or 'signing' state when signMessage is called",
+        "In onSuccess, POSTs address, bytes, and signature to '/api/auth' (or similar backend call)",
+        "In onError, sets an error state or displays an error message",
+        "Uses useSuiClientContext to read the current network and call selectNetwork",
+        "Renders a <select> or equivalent UI showing the current network with mainnet and testnet options",
+        "Calls selectNetwork when the user changes the dropdown value",
+        "Disables the sign-in button when no wallet is connected"
+      ]
+    }
+  ]
+}
