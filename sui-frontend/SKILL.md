@@ -1,33 +1,52 @@
 ---
 name: sui-frontend
-description: Sui frontend dApp development with @mysten/dapp-kit-react. Use when building React apps that connect to Sui wallets, query on-chain data, or execute transactions from the browser. Use alongside the sui-ts-sdk skill for PTB construction patterns.
+description: Sui frontend dApp development with @mysten/dapp-kit-react (React) and @mysten/dapp-kit-core (Vue, vanilla JS, other frameworks). Use when building browser apps that connect to Sui wallets, query on-chain data, or execute transactions. Use alongside the sui-ts-sdk skill for PTB construction patterns.
 ---
 
 # Sui Frontend Skill
 
-You are building a React frontend that interacts with the Sui blockchain using `@mysten/dapp-kit-react`. This skill covers instance setup, wallet connection, on-chain queries, and transaction signing. For PTB construction details (splitCoins, moveCall, coinWithBalance, etc.), apply the **sui-ts-sdk** skill alongside this one — the `Transaction` API is identical in browser and Node contexts.
+This skill covers building browser-based Sui dApps using the dApp Kit SDK. The SDK has two packages:
 
-> **Note**: The older `@mysten/dapp-kit` package is deprecated (JSON-RPC only, no gRPC/GraphQL support). New projects must use `@mysten/dapp-kit-react`.
+- **`@mysten/dapp-kit-react`** — React hooks, `DAppKitProvider`, and React component wrappers
+- **`@mysten/dapp-kit-core`** — Framework-agnostic core: actions, nanostores state, and Web Components for Vue, vanilla JS, Svelte, or any other framework
+
+Both packages expose the same `createDAppKit` factory and identical action APIs (`signAndExecuteTransaction`, `signTransaction`, `signPersonalMessage`, etc.). What differs is how you access reactive state and render UI: React uses hooks and provider components; other frameworks use nanostores stores and Web Components.
+
+For PTB construction details (splitCoins, moveCall, coinWithBalance, etc.), apply the **sui-ts-sdk** skill alongside this one — the `Transaction` API is identical in browser and Node contexts.
+
+> **Note**: The older `@mysten/dapp-kit` package is deprecated (JSON-RPC only, no gRPC/GraphQL support). New projects must use `@mysten/dapp-kit-react` or `@mysten/dapp-kit-core`.
 
 ---
 
 ## 1. Package Installation
 
+**React:**
 ```bash
 npm install @mysten/dapp-kit-react @mysten/sui
-# Add React Query if you want hook-based data fetching (recommended)
+# Add React Query for declarative on-chain data fetching (recommended)
 npm install @tanstack/react-query
+```
+
+**Vue / vanilla JS / other frameworks:**
+```bash
+npm install @mysten/dapp-kit-core @mysten/sui
+# For Vue reactive bindings:
+npm install @nanostores/vue
 ```
 
 | Package | Purpose |
 |---------|---------|
-| `@mysten/dapp-kit-react` | Wallet adapters, React hooks, ConnectButton |
+| `@mysten/dapp-kit-react` | React hooks, `DAppKitProvider`, React component wrappers |
+| `@mysten/dapp-kit-core` | Framework-agnostic actions, stores, Web Components |
 | `@mysten/sui` | Sui TypeScript SDK (Transaction class, gRPC client) |
-| `@tanstack/react-query` | Optional — for declarative on-chain data fetching |
+| `@tanstack/react-query` | Declarative on-chain data fetching (React only) |
+| `@nanostores/vue` | Reactive store bindings for Vue |
 
 ---
 
-## 2. Instance & Provider Setup
+## 2. Instance & Provider Setup (React)
+
+> **Not using React?** Skip to the [Non-React Integration](#non-react-integration-vue--vanilla-js--svelte) section below.
 
 The new dApp Kit uses a single `createDAppKit` factory instead of three nested providers. Create the instance once in a dedicated file, then wrap your app with `DAppKitProvider`:
 
@@ -71,7 +90,7 @@ export default function App() {
 }
 ```
 
-The `declare module` augmentation is what makes `useDAppKit()` and other hooks return properly typed values. Always include it.
+The `declare module` augmentation is what makes `useDAppKit()` and other hooks return properly typed values without passing the instance explicitly. It's the recommended approach — the alternative is passing `dAppKit` directly to each hook call (e.g. `useWalletConnection({ dAppKit })`), but that's more verbose.
 
 ---
 
@@ -101,6 +120,163 @@ createClient: (network) => new SuiJsonRpcClient({ ... })
 import { SuiGrpcClient } from '@mysten/sui/grpc';
 createClient: (network) => new SuiGrpcClient({ network, baseUrl: GRPC_URLS[network] })
 ```
+
+---
+
+## Non-React Integration (Vue / Vanilla JS / Svelte)
+
+Use `@mysten/dapp-kit-core` when not building with React. The `createDAppKit` call is identical — only the import path differs:
+
+```ts
+// dapp-kit.ts
+import { createDAppKit } from '@mysten/dapp-kit-core';  // ← core, not -react
+import { SuiGrpcClient } from '@mysten/sui/grpc';
+
+const GRPC_URLS: Record<string, string> = {
+  testnet: 'https://fullnode.testnet.sui.io:443',
+  mainnet: 'https://fullnode.mainnet.sui.io:443',
+};
+
+export const dAppKit = createDAppKit({
+  networks: ['testnet', 'mainnet'],
+  defaultNetwork: 'testnet',
+  createClient: (network) => new SuiGrpcClient({ network, baseUrl: GRPC_URLS[network] }),
+});
+```
+
+No `declare module` augmentation needed — that's React-only.
+
+All actions on the instance work identically to the React sections below: `signAndExecuteTransaction`, `signTransaction`, `signPersonalMessage`, `connectWallet`, `disconnectWallet`, `switchNetwork`, `switchAccount`.
+
+### Web Components
+
+Register the web components once at your app entry point, then use them in any HTML or template:
+
+```ts
+// main.ts (app entry point)
+import '@mysten/dapp-kit-core/web';
+```
+
+**Connect Button** — set `instance` as a DOM property (not an HTML attribute):
+
+```html
+<mysten-dapp-kit-connect-button></mysten-dapp-kit-connect-button>
+
+<script type="module">
+  import { dAppKit } from './dapp-kit.js';
+  document.querySelector('mysten-dapp-kit-connect-button').instance = dAppKit;
+</script>
+```
+
+In Vue templates use property binding:
+
+```vue
+<mysten-dapp-kit-connect-button :instance="dAppKit" />
+```
+
+Supports `modalOptions.filterFn` / `modalOptions.sortFn`, same as the React `ConnectButton`.
+
+**Connect Modal** — for custom triggers (menu items, keyboard shortcuts, programmatic open):
+
+```html
+<mysten-dapp-kit-connect-modal></mysten-dapp-kit-connect-modal>
+
+<script type="module">
+  const modal = document.querySelector('mysten-dapp-kit-connect-modal');
+  modal.instance = dAppKit;
+  document.getElementById('open-btn').addEventListener('click', () => modal.show());
+</script>
+```
+
+Modal events: `open`, `opened`, `close`, `closed`, `cancel`.
+
+### Reactive State (nanostores)
+
+State is exposed as [nanostores](https://github.com/nanostores/nanostores) stores on `dAppKit.stores`:
+
+| Store | Type | Description |
+|-------|------|-------------|
+| `$connection` | `{ wallet, account, status, isConnected, isConnecting, isReconnecting, isDisconnected }` | Full connection state |
+| `$currentNetwork` | `string` | Active network name |
+| `$currentClient` | `SuiClient` | Client for the active network |
+| `$wallets` | `UiWallet[]` | Detected wallets |
+
+**Vanilla JS** — subscribe for reactive updates:
+
+```ts
+// Read current value synchronously
+const connection = dAppKit.stores.$connection.get();
+
+// Subscribe (returns an unsubscribe function — always clean up)
+const unsubscribe = dAppKit.stores.$connection.subscribe((conn) => {
+  const el = document.getElementById('status');
+  if (!el) return;
+  if (conn.isConnected && conn.account) {
+    el.textContent = `${conn.wallet?.name}: ${conn.account.address}`;
+  } else {
+    el.textContent = 'Not connected';
+  }
+});
+
+// Unsubscribe when the view is destroyed
+unsubscribe();
+```
+
+**Vue** — use `@nanostores/vue` for reactive template bindings:
+
+```vue
+<script setup lang="ts">
+import { useStore } from '@nanostores/vue';
+import { dAppKit } from './dapp-kit';
+
+const connection = useStore(dAppKit.stores.$connection);
+const network = useStore(dAppKit.stores.$currentNetwork);
+
+async function handleTransfer() {
+  if (!connection.value.account) return;
+
+  const tx = new Transaction();
+  // ... build PTB ...
+  const result = await dAppKit.signAndExecuteTransaction({ transaction: tx });
+
+  if (result.FailedTransaction) {
+    throw new Error(result.FailedTransaction.status.error?.message ?? 'Transaction failed');
+  }
+  console.log('Digest:', result.Transaction.digest);
+}
+</script>
+
+<template>
+  <mysten-dapp-kit-connect-button :instance="dAppKit" />
+  <div v-if="connection.account">
+    <p>Wallet: {{ connection.wallet?.name }}</p>
+    <p>Address: {{ connection.account.address }}</p>
+    <p>Network: {{ network }}</p>
+    <button @click="handleTransfer">Send Transaction</button>
+  </div>
+  <p v-else>Connect your wallet to get started</p>
+</template>
+```
+
+For Svelte, Solid, and other frameworks, nanostores has dedicated integrations — see the [nanostores docs](https://github.com/nanostores/nanostores).
+
+### On-chain queries (non-React)
+
+Outside React there's no `useCurrentClient` hook. Use the store or `getClient()` directly:
+
+```ts
+const client = dAppKit.stores.$currentClient.get();
+// or equivalently:
+const client = dAppKit.getClient();           // current network's client
+const mainnetClient = dAppKit.getClient('mainnet'); // specific network
+
+const balance = await client.getBalance({
+  owner: dAppKit.stores.$connection.get().account!.address,
+  coinType: '0x2::sui::SUI',
+});
+```
+
+For live queries, subscribe to `$connection` and `$currentNetwork` and re-run when they change.
 
 ---
 
@@ -185,15 +361,16 @@ function ConnectionStatus() {
 
 ---
 
-## 5. Current Account
+## 5. Current Account & Wallet
 
-`useCurrentAccount` gives you the connected address:
+`useCurrentAccount` gives you the connected address; `useCurrentWallet` gives you the wallet object (name, icon, accounts list):
 
 ```tsx
-import { useCurrentAccount } from '@mysten/dapp-kit-react';
+import { useCurrentAccount, useCurrentWallet } from '@mysten/dapp-kit-react';
 
 function Profile() {
   const account = useCurrentAccount();
+  const wallet = useCurrentWallet();
 
   if (!account) {
     return <p>No wallet connected</p>;
@@ -201,6 +378,7 @@ function Profile() {
 
   return (
     <div>
+      <p>Wallet: {wallet?.name}</p>
       <p>Address: {account.address}</p>
       <p>Label: {account.label}</p>
     </div>
@@ -208,7 +386,10 @@ function Profile() {
 }
 ```
 
-`useCurrentAccount()` returns `null` when no wallet is connected. Always null-check before using `account.address` — TypeScript enforces this.
+Both return `null` when no wallet is connected. Always null-check before accessing their properties — TypeScript enforces this.
+
+- `useCurrentAccount()` → `UiWalletAccount | null` — provides `address`, `label`
+- `useCurrentWallet()` → `UiWallet | null` — provides `name`, `icon`, `accounts`
 
 ---
 

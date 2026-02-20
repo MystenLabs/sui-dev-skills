@@ -3,8 +3,8 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "Set up the provider boilerplate for a new React + Vite app that connects to the Sui testnet. The app should: 1) Install the correct packages. 2) Create a dapp-kit.ts file that configures testnet and mainnet using createDAppKit with a SuiGrpcClient. 3) Include the TypeScript module augmentation for type inference. 4) Wrap the app in DAppKitProvider. 5) Add a ConnectButton to the header. 6) Show the connected wallet address below the header, or a prompt to connect if no wallet is connected.",
-      "expected_output": "TypeScript/TSX files including dapp-kit.ts (createDAppKit with SuiGrpcClient, module augmentation), App.tsx with DAppKitProvider and ConnectButton, and a component that uses useCurrentAccount to conditionally render the address or a connect prompt.",
+      "prompt": "Set up the provider boilerplate for a new React + Vite app that connects to the Sui testnet. The app should: 1) Install the correct packages. 2) Create a dapp-kit.ts file that configures testnet and mainnet using createDAppKit with a SuiGrpcClient. 3) Include the TypeScript module augmentation for type inference. 4) Wrap the app in DAppKitProvider. 5) Add a ConnectButton to the header. 6) Show the connected wallet name and address below the header, or a prompt to connect if no wallet is connected.",
+      "expected_output": "TypeScript/TSX files including dapp-kit.ts (createDAppKit with SuiGrpcClient, module augmentation), App.tsx with DAppKitProvider and ConnectButton, and a component that uses useCurrentAccount and useCurrentWallet to conditionally render the wallet name, address, or a connect prompt.",
       "assertions": [
         "Installs @mysten/dapp-kit-react and @mysten/sui (not the deprecated @mysten/dapp-kit)",
         "Imports createDAppKit from '@mysten/dapp-kit-react'",
@@ -16,6 +16,7 @@
         "Does NOT use the old three-provider pattern (no SuiClientProvider, no WalletProvider, no QueryClientProvider from dapp-kit)",
         "Imports ConnectButton from '@mysten/dapp-kit-react'",
         "Uses useCurrentAccount from '@mysten/dapp-kit-react' to read the connected address",
+        "Uses useCurrentWallet from '@mysten/dapp-kit-react' to read the wallet name and renders it",
         "Null-checks the result of useCurrentAccount before accessing account.address",
         "Renders a connect prompt (e.g. ConnectButton or message) when account is null"
       ]
@@ -79,6 +80,26 @@
         "Renders a <select> or equivalent UI with mainnet and testnet options",
         "Calls switchNetwork when the user changes the dropdown value",
         "Disables the sign-in button when no wallet is connected"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "Using @mysten/dapp-kit-core (not @mysten/dapp-kit-react), write a vanilla JavaScript module that sets up Sui wallet integration for a web page. It should: 1) Create a dAppKit instance configured for testnet and mainnet with SuiGrpcClient. 2) Register the web components by importing '@mysten/dapp-kit-core/web'. 3) Set the dAppKit instance on a <mysten-dapp-kit-connect-button> element via its .instance property. 4) Subscribe to the $connection store and update a <div id='status'> to show the connected wallet name and address, or 'Not connected'. 5) On a separate button click, transfer 0.001 SUI to '0xRECIPIENT' using signAndExecuteTransaction, check for FailedTransaction, then call waitForTransaction using the current client from the store.",
+      "expected_output": "A vanilla JS module importing createDAppKit from '@mysten/dapp-kit-core', importing '@mysten/dapp-kit-core/web', setting .instance on the web component DOM element, subscribing to dAppKit.stores.$connection to update the UI, and executing a transaction with the FailedTransaction discriminant check and waitForTransaction.",
+      "assertions": [
+        "Imports createDAppKit from '@mysten/dapp-kit-core' (not '@mysten/dapp-kit-react')",
+        "Imports SuiGrpcClient from '@mysten/sui/grpc'",
+        "Imports '@mysten/dapp-kit-core/web' to register the web components",
+        "Sets the dAppKit instance on the connect button element via the .instance DOM property",
+        "Calls dAppKit.stores.$connection.subscribe() with a callback to reactively update the UI",
+        "Guards against null account inside the $connection subscription before accessing connection.account",
+        "Reads connection.account.address and connection.wallet.name inside the subscription",
+        "Gets the blockchain client from dAppKit.stores.$currentClient.get() or dAppKit.getClient()",
+        "Calls dAppKit.signAndExecuteTransaction({ transaction: tx }) as an async function",
+        "Checks result.FailedTransaction to detect transaction failure",
+        "Accesses result.Transaction.digest on the success path",
+        "Calls client.waitForTransaction with the transaction digest after success",
+        "Does NOT import or use DAppKitProvider, useDAppKit, or any hook from '@mysten/dapp-kit-react'"
       ]
     }
   ]
