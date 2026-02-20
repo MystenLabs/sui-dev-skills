@@ -1,24 +1,22 @@
 # Sui Frontend Skill
 
-A Claude skill for building Sui dApps with `@mysten/dapp-kit` — provider setup, wallet connection, on-chain queries, and transaction signing in React. Fixes common AI coding mistakes like using `SuiGrpcClient` instead of `SuiJsonRpcClient` in `SuiClientProvider`, missing CSS imports, wrong provider order, and invalidating queries before waiting for indexing.
+A Claude skill for building Sui dApps with the modern dApp Kit SDK (`@mysten/dapp-kit-react` for React, `@mysten/dapp-kit-core` for Vue/vanilla JS/other frameworks) — provider setup, wallet connection, on-chain queries, and transaction signing. Fixes common AI coding mistakes like using the deprecated `@mysten/dapp-kit` providers, the wrong client type, and invalidating queries before waiting for indexing.
 
 ## What's covered
 
-- Package installation (`@mysten/dapp-kit`, `@mysten/sui`, `@tanstack/react-query`)
-- Provider hierarchy (`QueryClientProvider` → `SuiClientProvider` → `WalletProvider`)
-- Network config with `SuiJsonRpcClient` (correct client for dApp Kit)
-- Wallet connection (`ConnectButton`, `useWallets`, `useConnectWallet`, `useDisconnectWallet`)
-- Wallet state (`useCurrentAccount`, `useCurrentWallet`, connection status)
-- Raw client access (`useSuiClient`)
-- On-chain queries (`useSuiClientQuery` with `enabled` guard)
-- Paginated queries (`useSuiClientInfiniteQuery`)
-- Transaction signing and execution (`useSignAndExecuteTransaction`)
-- Signing without executing (`useSignTransaction`) for sponsored flows
-- Personal message signing (`useSignPersonalMessage`) for auth
-- Network switching (`useSuiClientContext`)
-- Cache invalidation after transactions (`useQueryClient` + `waitForTransaction`)
+- Package installation (`@mysten/dapp-kit-react`, `@mysten/dapp-kit-core`, `@mysten/sui`, `@tanstack/react-query`, `@nanostores/vue`)
+- DApp Kit instance setup (`createDAppKit`, `SuiGrpcClient`, network configuration)
+- **React**: `DAppKitProvider`, hooks (`useCurrentAccount`, `useCurrentWallet`, `useCurrentClient`, `useCurrentNetwork`, `useDAppKit`, `useWallets`, `useWalletConnection`)
+- **Non-React** (Vue, vanilla JS, Svelte): nanostores stores (`$connection`, `$currentNetwork`, `$currentClient`, `$wallets`) and Web Components (`mysten-dapp-kit-connect-button`, `mysten-dapp-kit-connect-modal`)
+- On-chain queries using React Query + `useCurrentClient` (with `enabled` guards)
+- Paginated queries with `useInfiniteQuery`
+- Transaction signing and execution (`dAppKit.signAndExecuteTransaction`) with the discriminated union result pattern
+- Signing without executing (`dAppKit.signTransaction`) for sponsored flows
+- Personal message signing (`dAppKit.signPersonalMessage`) for auth
+- Network switching (`useCurrentNetwork` + `dAppKit.switchNetwork()`)
+- Cache invalidation after transactions (wait for indexing before invalidating)
 - Wallet-gated UI patterns
-- Anti-patterns to avoid (wrong client type, missing CSS, wrong provider order, stale queries)
+- Anti-patterns to avoid (deprecated `@mysten/dapp-kit`, wrong client type, old three-provider pattern, missing `declare module` augmentation, stale queries)
 
 ## Relationship with sui-ts-sdk skill
 
@@ -36,4 +34,4 @@ Or via the monorepo path — see the [root README](../README.md).
 
 ## Evals
 
-`evals/evals.json` contains four test cases covering provider setup, portfolio queries, transaction execution with cache invalidation, and sign-in + network switching. See the [root README](../README.md) for how to run them.
+`evals/evals.json` contains five test cases: four React dApp Kit scenarios (provider setup, portfolio queries, transaction execution with cache invalidation, and sign-in + network switching) plus a non-React `@mysten/dapp-kit-core` eval. See the [root README](../README.md) for how to run them.

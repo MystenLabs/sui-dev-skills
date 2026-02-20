@@ -227,6 +227,7 @@ unsubscribe();
 ```vue
 <script setup lang="ts">
 import { useStore } from '@nanostores/vue';
+import { Transaction } from '@mysten/sui/transactions';
 import { dAppKit } from './dapp-kit';
 
 const connection = useStore(dAppKit.stores.$connection);
@@ -270,8 +271,11 @@ const client = dAppKit.stores.$currentClient.get();
 const client = dAppKit.getClient();           // current network's client
 const mainnetClient = dAppKit.getClient('mainnet'); // specific network
 
+const connection = dAppKit.stores.$connection.get();
+if (!connection.account) throw new Error('Wallet not connected');
+
 const balance = await client.getBalance({
-  owner: dAppKit.stores.$connection.get().account!.address,
+  owner: connection.account.address,
   coinType: '0x2::sui::SUI',
 });
 ```
@@ -610,10 +614,13 @@ function AuthButton() {
 
   const handleAuth = async () => {
     if (!account) return;
-    const message = new TextEncoder().encode('Sign in to MyApp: nonce=abc123');
+    // In production, fetch a single-use nonce from your backend to prevent replay attacks.
+    // Here we use a random client-side value for illustration only.
+    const nonce = crypto.randomUUID();
+    const message = new TextEncoder().encode(`Sign in to MyApp: nonce=${nonce}`);
 
     const { bytes, signature } = await dAppKit.signPersonalMessage({ message });
-    // POST to backend for verification
+    // POST to backend for verification; backend should verify and invalidate the nonce.
     await verifyOnServer({ address: account.address, bytes, signature });
   };
 
@@ -668,7 +675,7 @@ function MintButton() {
   const queryClient = useQueryClient();
 
   const handleMint = async () => {
-    const tx = new Transaction();
+    const tx = new Transaction(); // import { Transaction } from '@mysten/sui/transactions'
     // ... build PTB ...
 
     const result = await dAppKit.signAndExecuteTransaction({ transaction: tx });
@@ -729,7 +736,7 @@ function WalletGuard({ children }: { children: React.ReactNode }) {
 
 | Mistake | Correct approach |
 |---------|-----------------|
-| Using `@mysten/dapp-kit` in new projects | That package is deprecated; use `@mysten/dapp-kit-react` |
+| Using `@mysten/dapp-kit` in new projects | That package is deprecated; use `@mysten/dapp-kit-react` (React) or `@mysten/dapp-kit-core` (Vue, vanilla JS, other frameworks) |
 | Using `SuiJsonRpcClient` in `createClient` | The new dApp Kit uses `SuiGrpcClient` — pass it to `createDAppKit`'s `createClient` |
 | Three-provider setup (`QueryClientProvider` + `SuiClientProvider` + `WalletProvider`) | Use `createDAppKit` + `DAppKitProvider` — the old provider pattern is gone |
 | Omitting the `declare module` augmentation | Without it, `useDAppKit()` and hooks lose TypeScript type inference |
