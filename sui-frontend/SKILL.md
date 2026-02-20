@@ -1,110 +1,105 @@
 ---
 name: sui-frontend
-description: Sui frontend dApp development with @mysten/dapp-kit. Use when building React apps that connect to Sui wallets, query on-chain data, or execute transactions from the browser. Use alongside the sui-ts-sdk skill for PTB construction patterns.
+description: Sui frontend dApp development with @mysten/dapp-kit-react. Use when building React apps that connect to Sui wallets, query on-chain data, or execute transactions from the browser. Use alongside the sui-ts-sdk skill for PTB construction patterns.
 ---
 
 # Sui Frontend Skill
 
-You are building a React frontend that interacts with the Sui blockchain using `@mysten/dapp-kit`. This skill covers provider setup, wallet connection, on-chain queries, and transaction signing. For PTB construction details (splitCoins, moveCall, coinWithBalance, etc.), apply the **sui-ts-sdk** skill alongside this one — the `Transaction` API is identical in browser and Node contexts.
+You are building a React frontend that interacts with the Sui blockchain using `@mysten/dapp-kit-react`. This skill covers instance setup, wallet connection, on-chain queries, and transaction signing. For PTB construction details (splitCoins, moveCall, coinWithBalance, etc.), apply the **sui-ts-sdk** skill alongside this one — the `Transaction` API is identical in browser and Node contexts.
+
+> **Note**: The older `@mysten/dapp-kit` package is deprecated (JSON-RPC only, no gRPC/GraphQL support). New projects must use `@mysten/dapp-kit-react`.
 
 ---
 
 ## 1. Package Installation
 
-Three packages are required:
-
 ```bash
-npm install @mysten/dapp-kit @mysten/sui @tanstack/react-query
+npm install @mysten/dapp-kit-react @mysten/sui
+# Add React Query if you want hook-based data fetching (recommended)
+npm install @tanstack/react-query
 ```
 
 | Package | Purpose |
 |---------|---------|
-| `@mysten/dapp-kit` | Wallet adapters, React hooks, ConnectButton |
-| `@mysten/sui` | Sui TypeScript SDK (Transaction class, client) |
-| `@tanstack/react-query` | Required peer dependency for data fetching and caching |
+| `@mysten/dapp-kit-react` | Wallet adapters, React hooks, ConnectButton |
+| `@mysten/sui` | Sui TypeScript SDK (Transaction class, gRPC client) |
+| `@tanstack/react-query` | Optional — for declarative on-chain data fetching |
 
 ---
 
-## 2. Provider Setup
+## 2. Instance & Provider Setup
 
-Wrap your app in three providers in this exact order:
+The new dApp Kit uses a single `createDAppKit` factory instead of three nested providers. Create the instance once in a dedicated file, then wrap your app with `DAppKitProvider`:
 
 ```tsx
-// ✅ app.tsx — correct provider nesting order
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { SuiClientProvider, WalletProvider } from '@mysten/dapp-kit';
-import '@mysten/dapp-kit/dist/index.css'; // required for ConnectButton styling
-import { networkConfig } from './network';
+// dapp-kit.ts
+import { createDAppKit } from '@mysten/dapp-kit-react';
+import { SuiGrpcClient } from '@mysten/sui/grpc';
 
-const queryClient = new QueryClient();
+const GRPC_URLS: Record<string, string> = {
+  testnet: 'https://fullnode.testnet.sui.io:443',
+  mainnet: 'https://fullnode.mainnet.sui.io:443',
+};
 
-export function App() {
-  return (
-    <QueryClientProvider client={queryClient}>
-      <SuiClientProvider networks={networkConfig} defaultNetwork="testnet">
-        <WalletProvider autoConnect>
-          <YourApp />
-        </WalletProvider>
-      </SuiClientProvider>
-    </QueryClientProvider>
-  );
+export const dAppKit = createDAppKit({
+  networks: ['testnet', 'mainnet'],
+  defaultNetwork: 'testnet',
+  createClient: (network) =>
+    new SuiGrpcClient({ network, baseUrl: GRPC_URLS[network] }),
+});
+
+// Register the instance type for TypeScript inference in hooks
+declare module '@mysten/dapp-kit-react' {
+  interface Register {
+    dAppKit: typeof dAppKit;
+  }
 }
 ```
 
 ```tsx
-// ❌ Wrong order — WalletProvider needs SuiClientProvider as ancestor
-<WalletProvider>
-  <SuiClientProvider networks={networkConfig}>
-    <QueryClientProvider client={queryClient}>
+// App.tsx
+import { DAppKitProvider, ConnectButton } from '@mysten/dapp-kit-react';
+import { dAppKit } from './dapp-kit';
+
+export default function App() {
+  return (
+    <DAppKitProvider dAppKit={dAppKit}>
+      <ConnectButton />
       <YourApp />
-    </QueryClientProvider>
-  </SuiClientProvider>
-</WalletProvider>
+    </DAppKitProvider>
+  );
+}
 ```
 
-**Import the dApp Kit CSS.** The `ConnectButton` and wallet modal depend on it. Forgetting this is the most common cause of broken wallet UI.
-
-**`autoConnect`** — reconnects the last-used wallet on page load. Omit if you want the user to manually connect each session.
+The `declare module` augmentation is what makes `useDAppKit()` and other hooks return properly typed values. Always include it.
 
 ---
 
-## 3. Network Configuration & Client
+## 3. Network & Client Configuration
 
-dApp Kit's `SuiClientProvider` requires a `networks` map. **Use `SuiJsonRpcClient` here, not `SuiGrpcClient`** — the provider is built for the JSON-RPC API. `SuiGrpcClient` is for backend/Node.js contexts and is not compatible with dApp Kit.
-
-```typescript
-// ✅ network.ts
-import { SuiJsonRpcClient, getJsonRpcFullnodeUrl } from '@mysten/sui/jsonRpc';
-
-export const networkConfig = {
-  mainnet: {
-    url: getJsonRpcFullnodeUrl('mainnet'),
-    createClient: (config: { url: string }) =>
-      new SuiJsonRpcClient({ url: config.url, network: 'mainnet' }),
-  },
-  testnet: {
-    url: getJsonRpcFullnodeUrl('testnet'),
-    createClient: (config: { url: string }) =>
-      new SuiJsonRpcClient({ url: config.url, network: 'testnet' }),
-  },
-};
-```
-
-```typescript
-// ❌ Do not use SuiGrpcClient in SuiClientProvider
-import { SuiGrpcClient } from '@mysten/sui/grpc'; // wrong client type for dApp Kit
-```
-
-**Both `url` and `network` are required** in `SuiJsonRpcClient`. Omitting either causes wallet display issues or silent connection errors.
-
-For a single-network app, the config can be simplified:
+`createDAppKit` accepts these key options:
 
 ```tsx
-// ✅ Single-network shorthand
-<SuiClientProvider
-  networks={{ mainnet: { url: getJsonRpcFullnodeUrl('mainnet') } }}
-  defaultNetwork="mainnet"
->
+createDAppKit({
+  networks: ['testnet', 'mainnet'],       // which networks your app supports
+  defaultNetwork: 'testnet',              // starting network
+  createClient: (network) =>              // called once per network
+    new SuiGrpcClient({ network, baseUrl: GRPC_URLS[network] }),
+  autoConnect: true,                      // default: true — restores last wallet on reload
+  // autoConnect: false,                  // disable if you want manual connect only
+});
+```
+
+**Use `SuiGrpcClient` here** — unlike the deprecated `@mysten/dapp-kit`, the new package is built for gRPC. Do not pass `SuiJsonRpcClient` to `createClient`.
+
+```tsx
+// ❌ Wrong client type — belongs to the deprecated @mysten/dapp-kit era
+import { SuiJsonRpcClient } from '@mysten/sui/jsonRpc';
+createClient: (network) => new SuiJsonRpcClient({ ... })
+
+// ✅ Correct
+import { SuiGrpcClient } from '@mysten/sui/grpc';
+createClient: (network) => new SuiGrpcClient({ network, baseUrl: GRPC_URLS[network] })
 ```
 
 ---
@@ -113,10 +108,10 @@ For a single-network app, the config can be simplified:
 
 ### ConnectButton
 
-The simplest approach — renders a "Connect Wallet" button that opens a modal listing all detected wallets:
+The simplest approach — renders a "Connect Wallet" button that opens a wallet selection modal:
 
 ```tsx
-import { ConnectButton } from '@mysten/dapp-kit';
+import { ConnectButton } from '@mysten/dapp-kit-react';
 
 function Header() {
   return (
@@ -127,48 +122,63 @@ function Header() {
 }
 ```
 
-`ConnectButton` automatically shows the connected address once a wallet is linked. It requires the CSS import from section 2.
+`ConnectButton` auto-connects on page load by default (controlled by `autoConnect` in `createDAppKit`). Wallet detection happens in the browser — the component must be client-side rendered.
+
+You can filter or sort the wallet list:
+
+```tsx
+<ConnectButton
+  modalOptions={{
+    filterFn: (wallet) => wallet.name !== 'ExcludedWallet',
+    sortFn: (a, b) => a.name.localeCompare(b.name),
+  }}
+/>
+```
 
 ### Supported wallets
 
-dApp Kit auto-detects any wallet implementing the [Sui Wallet Standard](https://docs.sui.io/standards/wallet-standard). No manual registration is needed — the user's installed wallets appear automatically. Common wallets: Sui Wallet, Suiet, Ethos, Martian, Morphis, Surf.
+dApp Kit auto-detects any wallet implementing the [Sui Wallet Standard](https://docs.sui.io/standards/wallet-standard). No manual registration needed — installed wallets appear automatically.
 
 ### Custom connection UI
 
-When the built-in button doesn't fit your design:
+Use `useWallets` to list wallets and `useDAppKit` for the connect/disconnect actions:
 
 ```tsx
-import { useWallets, useConnectWallet, useDisconnectWallet } from '@mysten/dapp-kit';
+import { useWallets, useDAppKit } from '@mysten/dapp-kit-react';
 
 function WalletMenu() {
   const wallets = useWallets();
-  const { mutate: connect } = useConnectWallet();
-  const { mutate: disconnect } = useDisconnectWallet();
+  const dAppKit = useDAppKit();
 
   return (
     <div>
       {wallets.map((wallet) => (
-        <button key={wallet.name} onClick={() => connect({ wallet })}>
+        <button
+          key={wallet.name}
+          onClick={() => dAppKit.connectWallet({ wallet })}
+        >
           {wallet.name}
         </button>
       ))}
-      <button onClick={() => disconnect()}>Disconnect</button>
+      <button onClick={() => dAppKit.disconnectWallet()}>Disconnect</button>
     </div>
   );
 }
 ```
 
-### Wallet connection state
+### Connection status
+
+`useWalletConnection` provides the full connection state:
 
 ```tsx
-import { useCurrentWallet } from '@mysten/dapp-kit';
+import { useWalletConnection } from '@mysten/dapp-kit-react';
 
 function ConnectionStatus() {
-  const { currentWallet, connectionStatus } = useCurrentWallet();
-  // connectionStatus: 'disconnected' | 'connecting' | 'connected'
+  const { status, wallet, account } = useWalletConnection();
+  // status: 'disconnected' | 'connecting' | 'reconnecting' | 'connected'
 
-  if (connectionStatus === 'connecting') return <p>Connecting...</p>;
-  if (connectionStatus === 'connected') return <p>Connected: {currentWallet?.name}</p>;
+  if (status === 'connecting' || status === 'reconnecting') return <p>Connecting...</p>;
+  if (status === 'connected') return <p>Connected: {wallet?.name}</p>;
   return <p>Disconnected</p>;
 }
 ```
@@ -177,10 +187,10 @@ function ConnectionStatus() {
 
 ## 5. Current Account
 
-`useCurrentAccount` gives you the connected address and public key:
+`useCurrentAccount` gives you the connected address:
 
 ```tsx
-import { useCurrentAccount } from '@mysten/dapp-kit';
+import { useCurrentAccount } from '@mysten/dapp-kit-react';
 
 function Profile() {
   const account = useCurrentAccount();
@@ -192,7 +202,7 @@ function Profile() {
   return (
     <div>
       <p>Address: {account.address}</p>
-      <p>Public key: {account.publicKey}</p>
+      <p>Label: {account.label}</p>
     </div>
   );
 }
@@ -204,41 +214,47 @@ function Profile() {
 
 ## 6. Accessing the Raw Client
 
-`useSuiClient` returns the active `SuiJsonRpcClient` for imperative calls — typically inside event handlers or after a transaction completes. Use this instead of creating your own client instance:
+`useCurrentClient` returns the `SuiClient` for the active network. Use it for imperative async calls — inside event handlers or after a transaction:
 
 ```tsx
-import { useSuiClient } from '@mysten/dapp-kit';
+import { useCurrentClient } from '@mysten/dapp-kit-react';
 
 function SomeComponent() {
-  const client = useSuiClient();
+  const client = useCurrentClient();
 
   const handleSuccess = async (digest: string) => {
-    // Always wait for indexing before follow-up reads (see sui-ts-sdk §11)
+    // Wait for indexing before follow-up reads (see sui-ts-sdk §11)
     await client.waitForTransaction({ digest });
-    // client methods are the same as SuiJsonRpcClient — see sui-ts-sdk for the full API
+    // All SuiGrpcClient methods are available — see sui-ts-sdk for the full API
   };
 }
 ```
 
-Do not instantiate `new SuiJsonRpcClient(...)` inside components — use `useSuiClient` so it stays in sync with the active network.
+Do not instantiate `new SuiGrpcClient(...)` inside components — use `useCurrentClient` so it stays in sync with the active network.
 
 ---
 
 ## 7. Querying On-Chain Data
 
-`useSuiClientQuery` wraps React Query and automatically uses the active network client. The first argument is any `SuiJsonRpcClient` method name (see sui-ts-sdk §14 for the full list of query methods and their argument shapes):
+`useSuiClientQuery` no longer exists in the new package. Use `useCurrentClient` with `@tanstack/react-query` directly:
 
 ```tsx
-import { useSuiClientQuery, useCurrentAccount } from '@mysten/dapp-kit';
+import { useCurrentClient, useCurrentAccount } from '@mysten/dapp-kit-react';
+import { useQuery } from '@tanstack/react-query';
 
-// SUI balance for the connected wallet
 function Balance() {
+  const client = useCurrentClient();
   const account = useCurrentAccount();
-  const { data, isPending, error } = useSuiClientQuery(
-    'getBalance',
-    { owner: account?.address ?? '', coinType: '0x2::sui::SUI' },
-    { enabled: !!account }, // ✅ skip the query until a wallet is connected
-  );
+
+  const { data, isPending, error } = useQuery({
+    queryKey: ['getBalance', account?.address],
+    queryFn: () =>
+      client.getBalance({
+        owner: account!.address,
+        coinType: '0x2::sui::SUI',
+      }),
+    enabled: !!account, // ✅ skip until wallet is connected
+  });
 
   if (isPending) return <p>Loading...</p>;
   if (error) return <p>Error: {error.message}</p>;
@@ -248,41 +264,50 @@ function Balance() {
 }
 ```
 
+Always wrap `@tanstack/react-query` usage in a `QueryClientProvider`:
+
 ```tsx
-// Other common method names — argument shapes are in sui-ts-sdk §14
-useSuiClientQuery('getOwnedObjects', { owner: account?.address ?? '' }, { enabled: !!account });
-useSuiClientQuery('getObject', { id: '0x...', options: { showContent: true } });
-useSuiClientQuery('multiGetObjects', { ids: ['0xA', '0xB'], options: { showContent: true } });
-useSuiClientQuery('getAllBalances', { owner: account?.address ?? '' }, { enabled: !!account });
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+const queryClient = new QueryClient();
+
+// Wrap your DAppKitProvider (or vice versa — order doesn't matter here)
+<QueryClientProvider client={queryClient}>
+  <DAppKitProvider dAppKit={dAppKit}>
+    <App />
+  </DAppKitProvider>
+</QueryClientProvider>
 ```
 
-**Always pass `enabled: !!account`** for queries that require a connected wallet. Without it, the hook fires immediately with an empty owner string and returns an error.
+**Always pass `enabled: !!account`** for queries that require a connected wallet. Without it, the query fires immediately with an undefined owner and errors.
 
 ---
 
 ## 8. Paginated Queries
 
-For queries that return pages of results, use `useSuiClientInfiniteQuery`:
+Use `useInfiniteQuery` from `@tanstack/react-query` paired with `useCurrentClient`:
 
 ```tsx
-import { useSuiClientInfiniteQuery, useCurrentAccount } from '@mysten/dapp-kit';
+import { useCurrentClient, useCurrentAccount } from '@mysten/dapp-kit-react';
+import { useInfiniteQuery } from '@tanstack/react-query';
 
 function OwnedNFTs() {
+  const client = useCurrentClient();
   const account = useCurrentAccount();
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
-    useSuiClientInfiniteQuery(
-      'getOwnedObjects',
-      {
-        owner: account?.address ?? '',
+
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
+    queryKey: ['getOwnedObjects', account?.address],
+    queryFn: ({ pageParam }) =>
+      client.getOwnedObjects({
+        owner: account!.address,
+        cursor: pageParam ?? null,
         filter: { StructType: '0xPKG::nft::NFT' },
         options: { showContent: true },
-      },
-      {
-        enabled: !!account,
-        getNextPageParam: (lastPage) =>
-          lastPage.hasNextPage ? lastPage.nextCursor : null,
-      },
-    );
+      }),
+    initialPageParam: undefined,
+    getNextPageParam: (lastPage) =>
+      lastPage.hasNextPage ? lastPage.nextCursor : undefined,
+    enabled: !!account,
+  });
 
   const allObjects = data?.pages.flatMap((page) => page.data) ?? [];
 
@@ -301,101 +326,88 @@ function OwnedNFTs() {
 }
 ```
 
-`data.pages` is an array of page responses. Flatten it with `.flatMap` to get a single list of items. `fetchNextPage` fetches the next cursor automatically.
-
 ---
 
 ## 9. Signing and Executing Transactions
 
-Use `useSignAndExecuteTransaction` to sign and submit a PTB through the connected wallet. Build the `Transaction` exactly as you would in any other context — see **sui-ts-sdk** for PTB construction patterns (`splitCoins`, `moveCall`, `coinWithBalance`, etc.):
+Use `useDAppKit` and call `signAndExecuteTransaction` as an async function. Build the `Transaction` exactly as you would in any other context — see **sui-ts-sdk** for PTB construction patterns:
 
 ```tsx
-import { useSignAndExecuteTransaction, useSuiClient, useCurrentAccount } from '@mysten/dapp-kit';
+import { useDAppKit, useCurrentClient, useCurrentAccount } from '@mysten/dapp-kit-react';
 import { Transaction } from '@mysten/sui/transactions';
+import { useState } from 'react';
 
 function ActionButton() {
+  const dAppKit = useDAppKit();
+  const client = useCurrentClient();
   const account = useCurrentAccount();
-  const client = useSuiClient();
-  const { mutate: signAndExecute, isPending } = useSignAndExecuteTransaction();
+  const [isPending, setIsPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleAction = () => {
+  const handleAction = async () => {
     if (!account) return;
+    setIsPending(true);
+    setError(null);
 
-    const tx = new Transaction();
-    // ... build PTB using sui-ts-sdk patterns ...
+    try {
+      const tx = new Transaction();
+      // ... build PTB using sui-ts-sdk patterns ...
 
-    signAndExecute(
-      { transaction: tx },
-      {
-        onSuccess: async (result) => {
-          // result.digest is available immediately after wallet confirms
-          await client.waitForTransaction({ digest: result.digest });
-          // now safe to re-query updated on-chain state
-        },
-        onError: (error) => {
-          console.error('Transaction failed:', error.message);
-        },
-      },
-    );
+      const result = await dAppKit.signAndExecuteTransaction({ transaction: tx });
+
+      if (result.FailedTransaction) {
+        throw new Error(result.FailedTransaction.status.error?.message ?? 'Transaction failed');
+      }
+
+      const digest = result.Transaction.digest;
+      await client.waitForTransaction({ digest });
+      // now safe to re-query updated on-chain state
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Unknown error');
+    } finally {
+      setIsPending(false);
+    }
   };
 
   return (
-    <button onClick={handleAction} disabled={!account || isPending}>
-      {isPending ? 'Waiting for wallet...' : 'Submit'}
-    </button>
+    <>
+      <button onClick={handleAction} disabled={!account || isPending}>
+        {isPending ? 'Waiting for wallet...' : 'Submit'}
+      </button>
+      {error && <p style={{ color: 'red' }}>{error}</p>}
+    </>
   );
 }
 ```
 
-### Requesting effects and events
-
-```tsx
-signAndExecute(
-  {
-    transaction: tx,
-    options: { showEffects: true, showEvents: true },
-  },
-  {
-    onSuccess: (result) => {
-      console.log('Effects:', result.effects);
-      console.log('Events:', result.events);
-    },
-  },
-);
-```
-
-The hook routes signing through the user's wallet — never call `client.signAndExecuteTransaction()` directly in React components.
+**Key differences from the old API:**
+- No mutation hook — `signAndExecuteTransaction` is a plain async function on the `useDAppKit()` instance
+- Result is a discriminated union: check `result.FailedTransaction` for failure; success data is at `result.Transaction.digest`
+- Manage your own `isPending` / error state with `useState`
 
 ---
 
 ## 10. Signing Without Executing
 
-When you need the user's signature but execution happens elsewhere — for example, a sponsored transaction where your backend attaches gas and submits:
+When you need the user's signature but execution happens elsewhere (e.g., a sponsored flow where your backend attaches gas):
 
 ```tsx
-import { useSignTransaction } from '@mysten/dapp-kit';
+import { useDAppKit } from '@mysten/dapp-kit-react';
 import { Transaction } from '@mysten/sui/transactions';
 
 function SponsoredMint() {
-  const { mutate: signTransaction } = useSignTransaction();
+  const dAppKit = useDAppKit();
 
-  const handleSign = () => {
+  const handleSign = async () => {
     const tx = new Transaction();
     // ... build PTB ...
 
-    signTransaction(
-      { transaction: tx },
-      {
-        onSuccess: ({ bytes, signature }) => {
-          // bytes + signature go to the backend; the sponsor attaches gas and executes
-          fetch('/api/sponsor', {
-            method: 'POST',
-            body: JSON.stringify({ bytes, signature }),
-          });
-        },
-        onError: (error) => console.error('Signing rejected:', error),
-      },
-    );
+    const { bytes, signature } = await dAppKit.signTransaction({ transaction: tx });
+    // Send bytes + signature to backend; sponsor attaches gas and executes
+    await fetch('/api/sponsor', {
+      method: 'POST',
+      body: JSON.stringify({ bytes, signature }),
+    });
   };
 
   return <button onClick={handleSign}>Mint (Gasless)</button>;
@@ -408,49 +420,47 @@ For the server-side sponsored execution flow (attaching the sponsor's gas, colle
 
 ## 11. Personal Message Signing
 
-Sign arbitrary bytes with the connected wallet. Useful for authentication challenges where the server issues a nonce and verifies the resulting signature:
-
 ```tsx
-import { useSignPersonalMessage } from '@mysten/dapp-kit';
+import { useDAppKit, useCurrentAccount } from '@mysten/dapp-kit-react';
 
 function AuthButton() {
-  const { mutate: signMessage } = useSignPersonalMessage();
+  const dAppKit = useDAppKit();
+  const account = useCurrentAccount();
 
-  const handleAuth = () => {
+  const handleAuth = async () => {
+    if (!account) return;
     const message = new TextEncoder().encode('Sign in to MyApp: nonce=abc123');
 
-    signMessage(
-      { message },
-      {
-        onSuccess: ({ bytes, signature }) => {
-          // POST bytes + signature to your backend for verification
-          verifyOnServer({ bytes, signature });
-        },
-        onError: (error) => console.error('Signing rejected:', error),
-      },
-    );
+    const { bytes, signature } = await dAppKit.signPersonalMessage({ message });
+    // POST to backend for verification
+    await verifyOnServer({ address: account.address, bytes, signature });
   };
 
-  return <button onClick={handleAuth}>Sign In</button>;
+  return (
+    <button onClick={handleAuth} disabled={!account}>
+      Sign In
+    </button>
+  );
 }
 ```
 
-The message must be a `Uint8Array` — use `TextEncoder` to convert strings. The wallet displays the raw bytes to the user before signing.
+The message must be a `Uint8Array` — use `TextEncoder` to convert strings. Always display message content clearly to users before signing.
 
 ---
 
 ## 12. Network Switching
 
-Read and change the active network at runtime using `useSuiClientContext`. Only networks included in `SuiClientProvider`'s `networks` prop are available:
+Read the active network with `useCurrentNetwork`; switch it via `useDAppKit`:
 
 ```tsx
-import { useSuiClientContext } from '@mysten/dapp-kit';
+import { useCurrentNetwork, useDAppKit } from '@mysten/dapp-kit-react';
 
 function NetworkSwitcher() {
-  const { network, selectNetwork } = useSuiClientContext();
+  const network = useCurrentNetwork();
+  const dAppKit = useDAppKit();
 
   return (
-    <select value={network} onChange={(e) => selectNetwork(e.target.value)}>
+    <select value={network} onChange={(e) => dAppKit.switchNetwork(e.target.value)}>
       <option value="mainnet">Mainnet</option>
       <option value="testnet">Testnet</option>
     </select>
@@ -458,37 +468,34 @@ function NetworkSwitcher() {
 }
 ```
 
-Switching network automatically updates the client returned by `useSuiClient` and re-runs any active `useSuiClientQuery` hooks against the new network.
+Only networks in `createDAppKit`'s `networks` array are valid targets. `switchNetwork` executes synchronously and does not notify the wallet — it only affects the dApp's client.
 
 ---
 
 ## 13. Cache Invalidation After Transactions
 
-After a successful transaction, on-chain state has changed. Invalidate relevant queries so the UI reflects the update. Always wait for indexing first — invalidating immediately after `signAndExecute` resolves will still return stale data:
+After a successful transaction, invalidate React Query caches so the UI reflects updated state. Always wait for indexing first:
 
 ```tsx
 import { useQueryClient } from '@tanstack/react-query';
-import { useSignAndExecuteTransaction, useSuiClient } from '@mysten/dapp-kit';
+import { useDAppKit, useCurrentClient, useCurrentAccount } from '@mysten/dapp-kit-react';
 
 function MintButton() {
+  const dAppKit = useDAppKit();
+  const client = useCurrentClient();
+  const account = useCurrentAccount();
   const queryClient = useQueryClient();
-  const client = useSuiClient();
-  const { mutate: signAndExecute } = useSignAndExecuteTransaction();
 
-  const handleMint = () => {
+  const handleMint = async () => {
     const tx = new Transaction();
     // ... build PTB ...
 
-    signAndExecute(
-      { transaction: tx },
-      {
-        onSuccess: async (result) => {
-          await client.waitForTransaction({ digest: result.digest }); // ✅ wait first
-          await queryClient.invalidateQueries({ queryKey: ['getBalance'] });
-          await queryClient.invalidateQueries({ queryKey: ['getOwnedObjects'] });
-        },
-      },
-    );
+    const result = await dAppKit.signAndExecuteTransaction({ transaction: tx });
+    if (result.FailedTransaction) throw new Error('Mint failed');
+
+    await client.waitForTransaction({ digest: result.Transaction.digest }); // ✅ wait first
+    await queryClient.invalidateQueries({ queryKey: ['getBalance', account?.address] });
+    await queryClient.invalidateQueries({ queryKey: ['getOwnedObjects', account?.address] });
   };
 
   return <button onClick={handleMint}>Mint NFT</button>;
@@ -497,20 +504,17 @@ function MintButton() {
 
 ```tsx
 // ❌ Invalidating before waitForTransaction — indexer hasn't caught up yet
-onSuccess: async (result) => {
-  await queryClient.invalidateQueries({ queryKey: ['getBalance'] }); // stale!
-  await client.waitForTransaction({ digest: result.digest });
-},
+const result = await dAppKit.signAndExecuteTransaction({ transaction: tx });
+await queryClient.invalidateQueries(...); // stale!
+await client.waitForTransaction({ digest: result.Transaction.digest });
 ```
 
 ---
 
 ## 14. Wallet-Gated UI
 
-Conditionally render content based on connection state:
-
 ```tsx
-import { useCurrentAccount, ConnectButton } from '@mysten/dapp-kit';
+import { useCurrentAccount, ConnectButton } from '@mysten/dapp-kit-react';
 
 function ProtectedPage() {
   const account = useCurrentAccount();
@@ -528,7 +532,7 @@ function ProtectedPage() {
 }
 ```
 
-For a reusable guard component:
+Reusable guard:
 
 ```tsx
 function WalletGuard({ children }: { children: React.ReactNode }) {
@@ -536,11 +540,6 @@ function WalletGuard({ children }: { children: React.ReactNode }) {
   if (!account) return <ConnectButton />;
   return <>{children}</>;
 }
-
-// Usage
-<WalletGuard>
-  <Dashboard />
-</WalletGuard>
 ```
 
 ---
@@ -549,14 +548,16 @@ function WalletGuard({ children }: { children: React.ReactNode }) {
 
 | Mistake | Correct approach |
 |---------|-----------------|
-| Using `SuiGrpcClient` in `SuiClientProvider` | Use `SuiJsonRpcClient` — dApp Kit requires the JSON-RPC client |
-| Omitting `network` in `SuiJsonRpcClient` | Both `url` and `network` are required; omitting either breaks wallet display |
-| Forgetting `@mysten/dapp-kit/dist/index.css` | Required for `ConnectButton` and wallet modal styling |
-| Registering wallet providers manually | dApp Kit auto-detects all Wallet Standard wallets; no registration needed |
-| Calling `client.signAndExecuteTransaction()` directly in a component | Use `useSignAndExecuteTransaction` — it routes signing through the connected wallet |
+| Using `@mysten/dapp-kit` in new projects | That package is deprecated; use `@mysten/dapp-kit-react` |
+| Using `SuiJsonRpcClient` in `createClient` | The new dApp Kit uses `SuiGrpcClient` — pass it to `createDAppKit`'s `createClient` |
+| Three-provider setup (`QueryClientProvider` + `SuiClientProvider` + `WalletProvider`) | Use `createDAppKit` + `DAppKitProvider` — the old provider pattern is gone |
+| Omitting the `declare module` augmentation | Without it, `useDAppKit()` and hooks lose TypeScript type inference |
+| `useSignAndExecuteTransaction`, `useConnectWallet`, `useDisconnectWallet` | These mutation hooks no longer exist; use `useDAppKit()` instance methods instead |
+| `useSuiClient` | Renamed to `useCurrentClient` |
+| `useSuiClientContext` | Replaced by `useCurrentNetwork` (read) + `useDAppKit().switchNetwork()` (write) |
+| `useSuiClientQuery` / `useSuiClientInfiniteQuery` | Removed; use `useCurrentClient` + `useQuery`/`useInfiniteQuery` from `@tanstack/react-query` |
+| Checking `result.digest` after `signAndExecuteTransaction` | Result is a discriminated union: use `result.Transaction.digest` (success) or `result.FailedTransaction` (failure) |
 | Reading `account.address` without null check | `useCurrentAccount()` returns `null` before connection; always guard |
-| `useSuiClientQuery` without `enabled: !!account` | Without `enabled`, the query fires with an empty owner string and returns errors |
+| `enabled: !!account` omitted from queries | Without it, the query fires with an undefined owner and errors immediately |
 | Invalidating queries before `waitForTransaction` | Indexer may not have processed the tx yet; always wait first |
-| Placing providers in the wrong order | Order must be: `QueryClientProvider` → `SuiClientProvider` → `WalletProvider` |
-| Creating `new SuiJsonRpcClient()` inside a component | Use `useSuiClient()` — stays in sync with the active network |
-| Encoding message as a plain string for `useSignPersonalMessage` | Encode with `new TextEncoder().encode(str)` — the hook expects `Uint8Array` |
+| `ConnectButton` in SSR without client-side guard | Wallet detection is browser-only; ensure client-side rendering for wallet components |
