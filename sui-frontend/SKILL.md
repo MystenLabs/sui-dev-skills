@@ -517,6 +517,32 @@ function OwnedNFTs() {
 
 Use `useDAppKit` and call `signAndExecuteTransaction` as an async function. Build the `Transaction` exactly as you would in any other context — see **sui-ts-sdk** for PTB construction patterns:
 
+### Unified API Convention (Frontend + SDK)
+
+When this skill is used with **sui-ts-sdk**, keep execution responsibilities explicit to avoid mixed calling styles:
+
+- **Wallet-mediated execution in browser**: use `dAppKit.signAndExecuteTransaction({ transaction: tx })`.
+- **Server/keypair-mediated execution**: use `client.signAndExecuteTransaction(...)` or `client.core.executeTransaction(...)`.
+- **Do not instantiate ad-hoc clients in React components**: use `useCurrentClient()` (React) or `dAppKit.stores.$currentClient` / `dAppKit.getClient()` (non-React).
+- **Normalize result handling with context-specific helpers**: dApp Kit responses are checked via `result.FailedTransaction`; SDK client responses are checked via `result.$kind === 'FailedTransaction'`.
+
+```ts
+// Keep two explicit helpers instead of one ambiguous checker.
+export function assertDAppKitSuccess(result: any): string {
+  if (result.FailedTransaction) {
+    throw new Error(result.FailedTransaction.status.error?.message ?? 'Transaction failed');
+  }
+  return result.Transaction.digest;
+}
+
+export function assertClientSuccess(result: any): string {
+  if (result.$kind === 'FailedTransaction') {
+    throw new Error(result.FailedTransaction.status.error?.message ?? 'Transaction failed');
+  }
+  return result.digest;
+}
+```
+
 ```tsx
 import { useDAppKit, useCurrentClient, useCurrentAccount } from '@mysten/dapp-kit-react';
 import { Transaction } from '@mysten/sui/transactions';
