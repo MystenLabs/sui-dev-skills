@@ -16,7 +16,7 @@ Always use Move 2024 edition. Every new package's `Move.toml` must include:
 ```toml
 [package]
 name = "my_package"
-edition = "2024.beta"
+edition = "2024"
 ```
 
 **Implicit framework dependencies (Sui 1.45+)** — do not list `Sui`, `MoveStdlib`, `Bridge`, or `SuiSystem` in `[dependencies]`. They are implicit:
@@ -100,10 +100,10 @@ use sui::coin::Coin;
 
 ## 3. Structs
 
-All structs must be declared `public`. Ability declarations go **after** the fields:
+All structs must be declared `public`. **Only add `has ...` when the struct has abilities**; structs with no abilities (e.g. hot potatoes, pure data bags with no `key`/`store`/`copy`/`drop`) have no `has` clause. When present, ability declarations go **after** the fields:
 
 ```move
-// ✅ Move 2024
+// ✅ Move 2024 — object (has key)
 public struct Pool has key {
     id: UID,
     balance_x: Balance<SUI>,
@@ -115,10 +115,14 @@ public struct PoolCap has key, store {
     pool_id: ID,
 }
 
-// ❌ Legacy — no public keyword
-struct Pool has key {
-    id: UID,
-}
+// ✅ No abilities — hot potato / must be consumed; do not add "has"
+public struct Promise {}
+
+// ✅ Value-only (copy, drop) — e.g. events, config payloads
+public struct LiquidityAdded has copy, drop { pool_id: ID, amount_x: u64, amount_y: u64 }
+
+// ❌ Legacy — missing public
+struct Pool has key { id: UID }
 ```
 
 **Object rule**: Any struct with the `key` ability **must** have `id: UID` as its first field. Use `object::new(ctx)` to create UIDs — never reuse or fabricate them.
@@ -135,26 +139,25 @@ public struct AdminCap has key, store { id: UID }
 public struct Admin has key, store { id: UID }
 ```
 
-**No `Potato` suffix** — a struct's lack of abilities already communicates it's a hot potato:
+**No `Potato` suffix** — a struct with **no** `has` (no abilities) is already a hot potato; do not add abilities or a Potato suffix:
 
 ```move
-// ✅
+// ✅ No abilities — correct
 public struct Promise {}
 
-// ❌
+// ❌ Redundant naming
 public struct PromisePotato {}
 ```
 
-**Events named in past tense** — they describe something that already happened:
+**Events** — use past-tense names and `has copy, drop` (events are values, not objects):
 
 ```move
 // ✅
 public struct LiquidityAdded has copy, drop { ... }
 public struct FeesCollected has copy, drop { ... }
 
-// ❌
+// ❌ Wrong tense
 public struct AddLiquidity has copy, drop { ... }
-public struct CollectFees has copy, drop { ... }
 ```
 
 **Dynamic field keys** — use positional structs (no named fields):
@@ -254,7 +257,7 @@ friend my_package::other_module;
 public(friend) fun internal_logic(pool: &mut Pool) { ... }
 ```
 
-**Never use `public entry`** — use one or the other. `public` functions are composable in PTBs and return values; `entry` functions are transaction endpoints only and cannot return values:
+**Prefer not combining `public entry`** — use one or the other. `public` functions are composable in PTBs and can return values; `entry` functions are transaction endpoints and cannot return values. Use `public` when the function is meant to be composed or to return values; use `entry` when it is only a transaction boundary.
 
 ```move
 // ✅ Composable — can be chained in PTBs
@@ -263,13 +266,13 @@ public fun mint(ctx: &mut TxContext): NFT { ... }
 // ✅ Transaction endpoint — no return value needed
 entry fun mint_and_transfer(recipient: address, ctx: &mut TxContext) { ... }
 
-// ❌ Redundant combination — avoid
+// ⚠️ Usually redundant — pick public or entry by intent
 public entry fun mint(ctx: &mut TxContext): NFT { ... }
 ```
 
 ### Function parameter ordering
 
-Always order parameters: mutable objects → immutable objects → capabilities → primitive types → `&Clock` → `&mut TxContext`:
+For typical business logic, order parameters: mutable objects → immutable objects → capabilities → primitive types → `&Clock` → `&mut TxContext`. For capability-gated functions, the capability is often first (as the "key" that unlocks the call):
 
 ```move
 // ✅
@@ -360,10 +363,10 @@ Use macro functions for higher-order patterns instead of manual loops.
 ### Vector macros
 
 ```move
-// Do something N times
+// Do something N times (std::macros::do! — receiver is the count)
 32u8.do!(|_| do_action());
 
-// Build a new vector from an index range
+// Build a new vector from an index range (vector::tabulate!)
 let v = vector::tabulate!(32, |i| i);
 
 // Iterate by immutable reference
@@ -510,7 +513,7 @@ event::emit(LiquidityAdded {
 
 ## 12. Error Handling
 
-Error constants use `EPascalCase` and `u64` values:
+**Classic error constants** use `EPascalCase` and `u64` values. Use these when you need stable, testable abort codes:
 
 ```move
 const EInsufficientLiquidity: u64 = 0;
@@ -519,9 +522,7 @@ const EZeroAmount: u64 = 1;
 assert!(amount > 0, EZeroAmount);
 ```
 
-### Clever errors (Move 2024)
-
-Annotating a constant with `#[error]` allows it to carry a human-readable message. The value can be any valid constant type — `vector<u8>` is most common for string messages:
+**Clever errors (Move 2024)** — annotating a constant with `#[error]` lets it carry a human-readable message. The constant's type can be any valid constant type; `vector<u8>` is most common for string messages:
 
 ```move
 #[error]
@@ -583,7 +584,7 @@ public fun set_fee(pool: &mut Pool, ctx: &TxContext) {
 }
 ```
 
-Note the parameter order: the object (`pool`) comes before the primitive (`new_fee`), and `_: &AdminCap` follows the objects-then-capabilities ordering from section 6.
+Note the parameter order: the capability (`&AdminCap`) comes first to gate the call; then the object (`pool`) and primitive (`new_fee`) follow.
 
 ---
 
@@ -741,16 +742,17 @@ fun only_admin_can_set_fee() {
 }
 ```
 
-**Assertions** — prefer `assert_eq!` over `assert!` for value comparisons (shows both sides on failure), and never pass abort codes to `assert!`:
+**Assertions** — prefer `assert_eq!` over `assert!` for value comparisons (shows both sides on failure). In tests, do not use a literal number (e.g. `0`) as the abort code for `assert!` — use your module's named error constant so it doesn't clash with application error codes:
 
 ```move
 // ✅
 assert_eq!(pool.fee_bps(), 30);
 assert!(pool.is_active());
+assert!(pool.reserves_x() > 0, EInsufficientLiquidity);
 
 // ❌
 assert!(pool.fee_bps() == 30);   // doesn't show the actual value on failure
-assert!(pool.is_active(), 0);    // abort code conflicts with app error codes
+assert!(pool.is_active(), 0);    // literal 0 is unclear; use a named constant
 ```
 
 **Destroying objects in tests** — use `sui::test_utils::destroy`, never write custom `destroy_for_testing` functions:
@@ -775,6 +777,20 @@ pool.destroy_for_testing();
 | `Script` functions | Aptos | Use `entry` functions instead |
 | `public(friend)` | Legacy Sui Move | Use `public(package)` |
 | Struct without `public` keyword | Legacy Sui Move | All structs must be `public` in 2024 |
+| Adding `has ...` to a struct with no abilities | Wrong | Omit `has` entirely for hot potatoes / no-ability structs |
 | `let x = ...` for mutable vars | Legacy Sui Move | Use `let mut x = ...` |
 | `use` inside function bodies for module-level imports | Style issue | Put `use` at the top of the module |
 | `&signer` | Rust / Aptos | Does not exist in Sui Move |
+
+## 20. Sui CLI
+
+When writing or recommending Sui CLI commands (e.g. in tutorials or docs), **do not include `--gas-budget` by default**. The CLI automatically estimates gas; only add `--gas-budget` when the user must override (e.g. very large transactions or when the default fails).
+
+```bash
+# ✅ Omit gas-budget — CLI uses automatic estimation
+sui client publish
+sui client call --package 0x... --module m --function f --args ...
+
+# ❌ Unnecessary in most docs/tutorials
+sui client publish --gas-budget 100000000
+```

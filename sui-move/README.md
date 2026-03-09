@@ -4,7 +4,7 @@ A Claude skill for idiomatic Sui Move 2024 development. Fixes common AI coding m
 
 ## What's covered
 
-- Move 2024 edition requirements (`edition = "2024.beta"`, implicit deps)
+- Move 2024 edition requirements (`edition = "2024"`, implicit deps from Sui 1.45+)
 - Sui object model (key/store/copy/drop, ownership modes)
 - Modern syntax (method syntax, enums, macros like `do!`, `tabulate!`)
 - Standard library patterns (`balance.into_coin`, `ctx.sender()`, `id.delete()`)
