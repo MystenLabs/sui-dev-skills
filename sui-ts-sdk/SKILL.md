@@ -485,6 +485,29 @@ if (result.$kind === 'FailedTransaction') {
 }
 ```
 
+### Unified API Convention (When Used with `sui-frontend`)
+
+In full-stack/browser apps, this SDK skill is often combined with **sui-frontend**. Use one execution path per layer:
+
+- **Frontend wallet flow**: `dAppKit.signAndExecuteTransaction({ transaction })` (from `@mysten/dapp-kit-react` / `@mysten/dapp-kit-core`).
+- **Backend or service signer flow**: `client.signAndExecuteTransaction(...)` or `client.core.executeTransaction(...)` (from `@mysten/sui`).
+- **Do not mix result discriminants**:
+  - dApp Kit result: check `result.FailedTransaction`.
+  - SDK client result: check `result.$kind === 'FailedTransaction'`.
+
+Use thin, explicit wrappers per response type to keep call sites consistent:
+
+```typescript
+export function assertClientExecutionOk(result: any): string {
+  if (result.$kind === 'FailedTransaction') {
+    throw new Error(result.FailedTransaction.status.error?.message ?? 'Transaction failed');
+  }
+  return result.digest;
+}
+```
+
+For frontend wallet flows, follow the companion helper pattern in `sui-frontend`.
+
 ```typescript
 // ❌ Don't assume success
 const result = await client.signAndExecuteTransaction({
