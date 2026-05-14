@@ -1,0 +1,49 @@
+{
+  "skill_name": "walrus",
+  "evals": [
+    {
+      "id": 1,
+      "name": "browser-dapp-upload-mint",
+      "prompt": "I'm building a Next.js dApp where users upload a product photo to Walrus and then mint an NFT pointing at the blob (testnet). They sign with Sui Wallet via @mysten/dapp-kit. Walk me through the right shape so (a) the upload survives a page refresh mid-flow, and (b) the second wallet popup doesn't get blocked by the browser. Give me the actual TypeScript.",
+      "expected_output": "Uses @mysten/walrus SDK with writeFilesFlow (or writeBlobFlow) — not direct WalrusClient.writeBlob in the browser. Splits register and certify into two separate click handlers and explains the second-popup-blocked issue. Configures an upload relay (uploadRelay in walrus init) so the browser doesn't open ~2200 connections. Addresses crash/refresh recovery (onStep/resume for writeBlob, or flow encode persisting in IndexedDB). Checks result.$kind === 'FailedTransaction' after each signed step. Does not hardcode a public publisher URL.",
+      "assertions": [
+        {"text": "Uses writeFilesFlow or writeBlobFlow rather than calling client.walrus.writeBlob directly in browser code"},
+        {"text": "Splits register and certify into two separate click handlers (warns that combining them blocks the second wallet popup)"},
+        {"text": "Configures an upload relay (uploadRelay in walrus() init) for the browser path"},
+        {"text": "Addresses crash/refresh recovery via onStep/resume, flow persistence, or equivalent — does not assume single-shot success"},
+        {"text": "Checks result.$kind === 'FailedTransaction' (or equivalent FailedTransaction handling) after each signed step"},
+        {"text": "Does NOT hardcode a public publisher/aggregator URL — uses env var, config, or notes that public endpoints rotate"}
+      ],
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "server-encrypted-docs-walrus-seal",
+      "prompt": "I have a Node.js backend that needs to store private user documents (PDFs) on Walrus, but only the document owner (a Sui address) should be able to decrypt them later. Walk me through the upload + retrieval flow end-to-end, including the Move side. Mainnet.",
+      "expected_output": "States up front that Walrus is public — must encrypt before upload. Uses envelope encryption: a fresh symmetric DEK (e.g., AES-256-GCM) encrypts the PDF, then Seal wraps the DEK against a seal_approve* policy. Uses @mysten/walrus SDK on the server (server is fine to call SDK direct — no relay needed). References @mysten/seal SDK for the wrap/unwrap. Stores ciphertext (and possibly wrapped DEK) on Walrus. Mentions per-user access policy in Move (e.g., the private_data pattern keyed by owner address).",
+      "assertions": [
+        {"text": "Recommends encrypting client-side BEFORE upload to Walrus and explicitly notes that Walrus blobs are public by default"},
+        {"text": "Uses envelope encryption: a fresh symmetric DEK encrypts the document, and Seal wraps only the DEK"},
+        {"text": "Uses @mysten/walrus SDK (not raw HTTP to a public publisher in production code)"},
+        {"text": "References @mysten/seal SDK and a Move seal_approve* policy for access control"},
+        {"text": "Stores ciphertext (not plaintext) on Walrus and explains where the wrapped DEK lives (alongside on Walrus or on Sui)"},
+        {"text": "Identifies the per-user / private-data policy pattern (decryption gated to the document owner's Sui address)"}
+      ],
+      "files": []
+    },
+    {
+      "id": 3,
+      "name": "quilts-batch-small-blobs",
+      "prompt": "I have ~200 small JSON files (~2 KB each) for a game's inventory metadata. What's the cheapest way to store these on Walrus, and how do I read individual entries back by name later? Show me the code.",
+      "expected_output": "Recommends Quilts — packs many small blobs into one storage unit and amortizes the fixed cost (~hundreds of times cheaper for files this size). Uses writeFiles with an array of WalrusFile entries (each with a unique identifier) — NOT one writeBlob per file. Shows reading back by identifier via getFiles or WalrusBlob.files({ identifiers: [...] }). Warns about Quilt constraints: identifiers must be unique within the Quilt and cannot start with '_'; individual files inside a Quilt cannot be separately deleted or extended.",
+      "assertions": [
+        {"text": "Recommends Quilts (writeFiles with multiple WalrusFile entries, or encodeQuilt) over storing each file as a separate blob"},
+        {"text": "Shows reading individual entries back by identifier (getFiles with the identifier, or WalrusBlob.files({identifiers: [...]}))"},
+        {"text": "Mentions cost amortization vs individual blobs (the fixed per-blob metadata cost is the reason Quilts exist)"},
+        {"text": "Warns about at least one Quilt constraint (identifiers unique within a Quilt, or _-prefix reserved, or per-file deletion not possible)"},
+        {"text": "Does NOT recommend a loop of writeBlob (one Sui tx per file) for this scenario"}
+      ],
+      "files": []
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+{
+  "skill_name": "seal",
+  "evals": [
+    {
+      "id": 1,
+      "name": "move-seal-approve-nft-gated-content",
+      "prompt": "I want to encrypt premium articles on my dApp so only holders of my Sui NFT collection (`0xabc::collection::CollectionNFT`) can decrypt them. Write the Move package with the right `seal_approve_*` function, and explain the key-id convention I should use when encrypting from TypeScript so attackers can't forge access.",
+      "expected_output": "Declares the function `entry fun seal_approve_...` (NOT `public entry`). First parameter is `id: vector<u8>`. Function aborts (assert!) on denial with no return value. Explains that Seal prepends the full package id to the id bytes, so packages can't forge each other's identities. Recommends a key-id prefix the function checks (e.g., article id + nonce, or collection id + nonce), and explains why — otherwise a caller could reuse this seal_approve to unlock unrelated data. Checks NFT ownership (e.g., the user passes an owned &CollectionNFT or the policy checks ctx.sender() against an on-chain registry). Notes side-effect-free constraint (no transfer, no events, no sui::random).",
+      "assertions": [
+        {"text": "Function declared as `entry fun seal_approve...` (not `public entry fun`, not `public fun`)"},
+        {"text": "First parameter is `id: vector<u8>` — the identity bytes the client encrypts against"},
+        {"text": "Function aborts (assert!) on denial; does NOT return a bool or any value"},
+        {"text": "Explains that Seal prepends the package_id to every key-id (so packages cannot forge each other's identities)"},
+        {"text": "Recommends a key-id prefix check inside the function (e.g., article-id or collection-id prefix) and explains why — to prevent reusing this approve for unrelated data"},
+        {"text": "Checks NFT ownership — either by passing an owned NFT reference or by checking ctx.sender() against the NFT collection"},
+        {"text": "Mentions side-effect-free constraint (no transfer, no event emission, no use of sui::random) and/or that the function is evaluated via dry_run_transaction_block"}
+      ],
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "ts-sdk-chat-session-key",
+      "prompt": "Building a private chat dApp on Sui. Each message is encrypted with Seal and only members of a Room (a shared Move object holding a list of addresses) can decrypt. Show me the TypeScript flow: client setup, encrypt one message, then decrypt 50 messages on room load — without making the user sign 50 personal messages.",
+      "expected_output": "Instantiates a single SealClient with serverConfigs (multiple key-server object ids + weights) and a threshold (e.g., 2-of-3). Creates one SessionKey via SessionKey.create with the chat package id and ttlMin; user signs the session's personal message once via signPersonalMessage + setPersonalMessageSignature. For the 50 messages, builds ONE PTB containing 50 seal_approve_* moveCalls (one per message id) and uses seal.fetchKeys to fetch all keys in one round of key-server requests. Then decrypts each blob locally via seal.decrypt reusing the same session. Reuses the SealClient and SessionKey for caching. PTB is built with onlyTransactionKind: true.",
+      "assertions": [
+        {"text": "Instantiates a single SealClient with serverConfigs (multiple key-server object ids) and a threshold"},
+        {"text": "Creates SessionKey via SessionKey.create with packageId and ttlMin parameters"},
+        {"text": "Calls signPersonalMessage + setPersonalMessageSignature to initialize the SessionKey (or passes a Signer for backend flows)"},
+        {"text": "Reuses a single SealClient and SessionKey across requests, and mentions caching as the reason"},
+        {"text": "Uses fetchKeys with a multi-call PTB for batch decryption — does NOT call seal.decrypt in a loop of N independent key-server calls"},
+        {"text": "Builds the PTB with `onlyTransactionKind: true` and passes the resulting txBytes to fetchKeys/decrypt"}
+      ],
+      "files": []
+    },
+    {
+      "id": 3,
+      "name": "onchain-sealed-bid-auction",
+      "prompt": "I'm building a sealed-bid auction on Sui. Bids are encrypted client-side now, and the winning bid must be revealed (decrypted) ON CHAIN after the auction closes (via clock). How do I use Seal for this? What's different from regular client-side decryption?",
+      "expected_output": "Names seal::bf_hmac_encryption — Seal's onchain decryption Move module. Specifies that the ciphertext must be encrypted with HMAC-CTR, not AES — AES-GCM ciphertext cannot be decrypted on-chain. Distinguishes onchain decryption from regular IBE (which is client-side). Three-step flow: (1) initialization — fetch key-server public keys via client.getPublicKeys, convert with bf_hmac_encryption::new_public_key, store as a shared object; (2) derived-key delivery — client calls client.getDerivedKeys against the post-reveal condition and submits keys + proofs which the contract verifies via verify_derived_keys; (3) decryption — contract calls bf_hmac_encryption::decrypt(ciphertext, derived_keys, public_keys) which returns Option<vector<u8>>. For time-gated reveal, references the TLE pattern (tle.move) using clock.timestamp_ms() in seal_approve. Notes onchain decryption is slower / more memory-hungry — only use when plaintext truly needs to be visible on-chain.",
+      "assertions": [
+        {"text": "Names seal::bf_hmac_encryption (the Seal Move module for onchain decryption)"},
+        {"text": "Specifies HMAC-CTR encryption (not AES-GCM) is required for the ciphertext to be decryptable on-chain"},
+        {"text": "Distinguishes onchain decryption from regular client-side IBE decryption (explains the difference, not just lists both)"},
+        {"text": "Describes the three-step flow: store key-server public keys, deliver derived keys + proofs, contract calls decrypt"},
+        {"text": "References verify_derived_keys or new_public_key (the specific bf_hmac_encryption API surface)"},
+        {"text": "For time-based reveal, references the TLE pattern (tle.move) or uses clock.timestamp_ms() inside seal_approve"},
+        {"text": "Notes that onchain decryption should only be used when plaintext truly needs to be visible on-chain (it's slower / more expensive than client-side)"}
+      ],
+      "files": []
+    }
+  ]
+}

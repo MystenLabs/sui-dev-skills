@@ -1,0 +1,62 @@
+{
+  "skill_name": "deepbook",
+  "evals": [
+    {
+      "id": 1,
+      "name": "limit-order-from-scratch",
+      "prompt": "I want to place a limit order on the DeepBook SUI/USDC pool from a Node.js script. I've never touched DeepBook before. Walk me through what I need to set up (objects, manager, etc.) and give me the actual TypeScript code end-to-end.",
+      "expected_output": "Mentions BalanceManager creation + deposit before placing the order. Uses @mysten/deepbook-v3 DeepBookClient (not raw moveCall). Mentions tick_size / lot_size / min_size considerations. Addresses fee payment (pay_with_deep vs whitelisted pools). Uses env: 'mainnet' rather than hardcoding package id.",
+      "assertions": [
+        {"text": "Output mentions creating a BalanceManager and depositing into it before placing an order"},
+        {"text": "Output uses @mysten/deepbook-v3 DeepBookClient (not raw Transaction.moveCall or @mysten/sui only)"},
+        {"text": "Output mentions tick_size / lot_size / min_size or warns about minimum size constraints"},
+        {"text": "Output addresses pay_with_deep fee behavior (or notes whitelisted pools are 0-fee)"},
+        {"text": "Output uses env: 'mainnet' / 'testnet' rather than hardcoding a package id"},
+        {"text": "Output mentions TradeProof or the balanceManagerKey abstraction (the authorization mechanism)"}
+      ],
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "maker-rebate-not-arriving",
+      "prompt": "I'm running a market-making bot on DeepBook's SUI/DBUSDC pool. I've been quoting both sides for a few days and I'm not getting any maker rebates. What am I missing?",
+      "expected_output": "Explains DEEP stake threshold (must be >= pool.stake_required). Mentions stake activation lag — staking in epoch N is only active in epoch N+1. Mentions phaseout against 28-day median volume. Tells the user they must call claim_rebates explicitly (not auto-paid). Does not invent unrelated reasons.",
+      "assertions": [
+        {"text": "Output explains that the BalanceManager must have DEEP staked >= the pool's stake_required to be rebate-eligible"},
+        {"text": "Output mentions the epoch N → N+1 stake activation lag"},
+        {"text": "Output mentions volume phaseout against the 28-day median (rebates scale to zero above threshold)"},
+        {"text": "Output instructs the user to call claim_rebates explicitly (rebates are not auto-paid)"},
+        {"text": "Output does NOT invent unrelated causes (e.g., gas issues, RPC problems, missing index)"}
+      ],
+      "files": []
+    },
+    {
+      "id": 3,
+      "name": "predict-market-mint",
+      "prompt": "How do I mint a binary up/down position on DeepBook's prediction market? I want to use testnet.",
+      "expected_output": "Identifies predict as testnet-only / predict-testnet-4-16 branch (not on mainnet). Names PredictManager and that it wraps a BalanceManager. Mentions MarketKey(oracle_id, expiry, strike, direction). Calls predict::mint<Quote>(predict, manager, oracle, key, quantity, clock, ctx) shape. Mentions either the predict server endpoints or that pricing comes from OracleSVI (SVI surface + base spread).",
+      "assertions": [
+        {"text": "Output identifies the prediction market as testnet-only (not deployed on mainnet)"},
+        {"text": "Output names PredictManager (the per-user object)"},
+        {"text": "Output names MarketKey or describes its (oracle_id, expiry, strike, direction) shape"},
+        {"text": "Output shows a predict::mint call (or SDK equivalent) with predict + manager + oracle + key + quantity"},
+        {"text": "Output mentions OracleSVI pricing or the predict server endpoints (the off-chain quote source)"},
+        {"text": "Output does NOT incorrectly claim the prediction market is on mainnet"}
+      ],
+      "files": []
+    },
+    {
+      "id": 4,
+      "name": "flash-loan-arb",
+      "prompt": "Can I use DeepBook flash loans to arbitrage between two pools on Sui? Show me the basic shape.",
+      "expected_output": "Names borrow_flashloan_base / return_flashloan_base (or the _quote variants). Explains the FlashLoan hot-potato pattern (must be consumed in the same PTB or tx aborts). Mentions that the loan itself has no fee but normal trading fees still apply. Sketches a PTB that borrows, swaps in pool A, swaps in pool B, then returns the loan.",
+      "assertions": [
+        {"text": "Output names borrow_flashloan_base / return_flashloan_base (or _quote variants) — the actual Move/SDK function names"},
+        {"text": "Output explains the FlashLoan hot-potato pattern (must be consumed in the same PTB or the tx aborts)"},
+        {"text": "Output notes the loan itself has no fee (only normal trading fees apply)"},
+        {"text": "Output sketches a PTB shape: borrow → swap in pool A → swap in pool B → return loan"}
+      ],
+      "files": []
+    }
+  ]
+}

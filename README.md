@@ -9,6 +9,9 @@ A collection of Claude skills for Sui development. Each skill is modular and can
 | [`move/`](./move/) | Idiomatic Move on Sui — object model, modern syntax, testing | ✅ Ready |
 | [`sui-ts-sdk/`](./sui-ts-sdk/) | TypeScript SDK v2 — PTB construction, client setup, transaction execution, on-chain queries | ✅ Ready |
 | [`sui-frontend/`](./sui-frontend/) | Frontend integration — dApp Kit, wallet connection, React hooks, on-chain queries from the browser | ✅ Ready |
+| [`seal/`](./seal/) | Seal — decentralized secrets management: `seal_approve*` Move policies, `@mysten/seal` SDK, envelope encryption for Walrus | ✅ Ready |
+| [`walrus/`](./walrus/) | Walrus — decentralized blob storage: `@mysten/walrus` SDK, publisher/aggregator HTTP API, upload relay, Quilts, crash-recoverable uploads | ✅ Ready |
+| [`deepbook/`](./deepbook/) | DeepBook v3 — onchain CLOB on Sui: order book, BalanceManager, fees & rebates, governance, flash loans; prediction markets and margin (testnet) | ✅ Ready |
 
 ## Installation
 
