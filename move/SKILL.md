@@ -1,15 +1,13 @@
 ---
-
-## name: move
+name: move
 description: Move smart contract development on Sui. Use when writing, reviewing, or debugging Move code, Move.toml configuration, or Sui object model patterns.
+---
 
 # Move Development Skill
 
 You are writing Move smart contracts on Sui. Follow these rules precisely. Move on Sui is **not** Aptos Move and is **not** Rust — do not apply patterns from those languages.
 
 This skill routes to focused sub-skills. Load only the ones relevant to the current task.
-
----
 
 ## Sub-skills
 
