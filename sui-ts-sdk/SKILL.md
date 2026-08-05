@@ -232,12 +232,48 @@ When a Move function takes a `Receiving<T>` parameter, the SDK auto-converts `tx
 
 ## 6. Built-in Commands
 
-### splitCoins
+### Coins and balances (recommended)
 
-Creates new coins by splitting from a source coin. Returns an array of coin references:
+`tx.coin()` and `tx.balance()` are the **recommended** methods for obtaining tokens. They automatically draw from both coin objects and address balances, preferring address balances to avoid versioned object dependencies.
 
 ```typescript
-// Split from gas coin — most common pattern for SUI
+// Get a Coin<T> for transfers — SUI (balance in MIST)
+tx.transferObjects([tx.coin({ balance: 1_000_000_000n })], '0xRecipientAddress');
+
+// Non-SUI coin type
+tx.transferObjects(
+  [tx.coin({ balance: 1_000_000n, type: '0xPkg::module::USDC' })],
+  '0xRecipientAddress',
+);
+
+// Get a Balance<T> for Move function arguments
+tx.moveCall({
+  target: '0xPkg::module::deposit',
+  arguments: [tx.object('0xPool'), tx.balance({ balance: 1_000_000_000n })],
+});
+
+// Send to address balance (preferred for payments)
+tx.moveCall({
+  target: '0x2::balance::send_funds',
+  typeArguments: ['0x2::sui::SUI'],
+  arguments: [tx.balance({ balance: 1_000_000_000n }), tx.pure.address('0xRecipient')],
+});
+```
+
+Options: `{ balance: bigint, type?: string, useGasCoin?: boolean }`. Default type is SUI. Set `useGasCoin: false` for sponsored transactions where the gas coin belongs to the sponsor.
+
+`coinWithBalance()` is a standalone alias for `tx.coin()`:
+```typescript
+import { coinWithBalance } from '@mysten/sui/transactions';
+tx.transferObjects([coinWithBalance({ balance: 1_000_000 })], recipient);
+```
+
+### splitCoins (low-level)
+
+Creates new coins by splitting from a source coin. **Prefer `tx.coin()` above** unless you need manual control:
+
+```typescript
+// Split from gas coin
 const [coin] = tx.splitCoins(tx.gas, [1000]);
 
 // Split multiple amounts
@@ -260,12 +296,11 @@ tx.mergeCoins(tx.object('0xDestCoin'), [
 
 ### transferObjects
 
-Transfers one or more objects to a recipient address. The objects can be results from other commands:
+Transfers one or more objects to a recipient address:
 
 ```typescript
-// Transfer a split coin
-const [coin] = tx.splitCoins(tx.gas, [1000]);
-tx.transferObjects([coin], '0xRecipientAddress');
+// Transfer using tx.coin (recommended)
+tx.transferObjects([tx.coin({ balance: 1000n })], '0xRecipientAddress');
 
 // Transfer existing objects
 tx.transferObjects(
@@ -496,10 +531,10 @@ console.log('Success!', result.digest); // may be a failed transaction
 
 ### Execution with include options
 
-All clients support an `include` parameter via the Core API to control what data is returned:
+All clients support an `include` parameter to control what data is returned:
 
 ```typescript
-const result = await client.core.signAndExecuteTransaction({
+const result = await client.signAndExecuteTransaction({
   transaction: tx,
   signer: keypair,
   include: {
@@ -529,7 +564,7 @@ For advanced flows (e.g., multi-sig, sponsored transactions), sign and execute s
 ```typescript
 const { bytes, signature } = await tx.sign({ client, signer: keypair });
 
-const result = await client.core.executeTransaction({
+const result = await client.executeTransaction({
   transaction: bytes,
   signatures: [signature],
   include: { effects: true },
@@ -538,9 +573,9 @@ const result = await client.core.executeTransaction({
 
 ---
 
-## 11. Waiting for Indexing
+## 11. Waiting for Finality
 
-After execution, the transaction is finalized but may not be immediately visible in query APIs (object reads, balance queries). Use `waitForTransaction` before making follow-up queries:
+After execution, call `waitForTransaction` **before** error handling or follow-up queries:
 
 ```typescript
 const result = await client.signAndExecuteTransaction({
@@ -548,20 +583,28 @@ const result = await client.signAndExecuteTransaction({
   transaction: tx,
 });
 
-// ✅ Wait for indexing before querying
-await client.waitForTransaction({ digest: result.digest });
+// ✅ Wait BEFORE error handling — ensures finality. Pass result directly.
+await client.waitForTransaction(result);
+
+if (result.$kind === 'FailedTransaction') {
+  // Onchain, gas charged, Move execution aborted. Do NOT retry.
+  throw new Error(`Failed: ${result.FailedTransaction.effects.status.error}`);
+}
 
 // Now safe to query updated state
 const obj = await client.getObject({ id: objectId });
 ```
+
+A `FailedTransaction` **is** onchain — the sender was charged gas and the tx has effects. Always distinguish:
+1. `Transaction` — succeeded with intended effects
+2. `FailedTransaction` — onchain, gas charged, Move execution aborted
+3. Exception/not found — transaction never seen by the network
 
 ```typescript
 // ❌ Query immediately after execution — may return stale data
 const result = await client.signAndExecuteTransaction({ ... });
 const obj = await client.getObject({ id: objectId }); // might not reflect the transaction
 ```
-
-`waitForTransaction` polls until the transaction is indexed (default: 2-second intervals, 60-second timeout).
 
 ---
 
@@ -725,13 +768,13 @@ const { signature: userSig } = await sponsoredTx.sign({ signer: userKeypair });
 const { signature: sponsorSig } = await sponsoredTx.sign({ signer: sponsorKeypair });
 
 // Execute with both signatures
-const result = await client.core.executeTransaction({
+const result = await client.executeTransaction({
   transaction: await sponsoredTx.build({ client }),
   signatures: [userSig, sponsorSig],
 });
 ```
 
-**Important**: When a sponsor pays for gas, the gas coin belongs to the sponsor. Avoid using `tx.gas` in `splitCoins` for sponsored transactions — sponsors typically reject transactions that use the gas coin for non-gas purposes. Use `coinWithBalance` instead.
+**Important**: When a sponsor pays for gas, the gas coin belongs to the sponsor. Avoid using `tx.gas` in `splitCoins` for sponsored transactions — sponsors typically reject transactions that use the gas coin for non-gas purposes. Use `tx.coin({ balance, useGasCoin: false })` instead.
 
 ---
 
@@ -747,8 +790,13 @@ const result = await client.core.executeTransaction({
 | Manual BCS for basic types | Use `tx.pure.u64()`, `tx.pure.address()`, etc. |
 | `tx.pure(100)` without a type | Use `tx.pure.u64(100)` — must specify the type |
 | Not checking `result.$kind` after execution | Always check `result.$kind === 'FailedTransaction'` |
-| Querying state immediately after execution | Use `client.waitForTransaction()` first |
-| Using `tx.gas` in splitCoins for sponsored txs | Use `coinWithBalance` for sponsor-safe coin creation |
+| Treating `FailedTransaction` as "not onchain" | It IS onchain, gas was charged, has effects. Do not retry. |
+| Querying state immediately after execution | Call `client.waitForTransaction(result)` first, before error handling |
+| `client.core.getBalance(...)` in user code | Use `client.getBalance(...)` — `.core` is for SDK internals only |
+| `tx.splitCoins(tx.gas, [amount])` + `tx.transferObjects` | Use `tx.coin({ balance: amount })` or `tx.balance({ balance: amount })` |
+| `new Ed25519Keypair()` then signing transactions | Use `Ed25519Keypair.fromSecretKey(process.env.KEY!)` — random keys are unfunded |
+| `TransactionDataBuilder.fromBytes(bytes)` | Use `Transaction.from(bytes)` — `TransactionDataBuilder` is internal |
+| Using `tx.gas` in splitCoins for sponsored txs | Use `tx.coin({ balance, useGasCoin: false })` |
 | `coinWithBalance` without `setSender()` for non-SUI types | Call `tx.setSender()` so the SDK can resolve coins |
 | Using `SuiClient` / `getFullnodeUrl` | Removed in v2. Use `SuiJsonRpcClient` from `@mysten/sui/jsonRpc` or preferably `SuiGrpcClient` |
 | Using the SDK for frontend wallet signing | Use `@mysten/dapp-kit` for wallet connection/signing in React apps; PTB construction is the same |
@@ -796,19 +844,19 @@ If JSON-RPC is still needed:
 
 All client constructors (`SuiGrpcClient`, `SuiJsonRpcClient`, `SuiGraphQLClient`) now require an explicit `network` parameter.
 
-### Core API — `client.core.*` replaces direct methods
+### Data access methods renamed
 
-Data access methods are now namespaced under `client.core`:
+v1 direct methods have new names in v2. When using a concrete client like `SuiGrpcClient`, call them as top-level methods. The `client.core.*` accessor exists for SDK/library code that accepts `ClientWithCoreApi` and must work with any transport — do not use `.core` in application code or documentation examples.
 
 ```diff
 - await client.getObject({ id: objectId, options: { showContent: true } });
-+ await client.core.getObject({ objectId, include: { content: true } });
++ await client.getObject({ objectId, include: { content: true } });
 
 - await client.getOwnedObjects({ owner });
-+ await client.core.listOwnedObjects({ owner });
++ await client.listOwnedObjects({ owner });
 
 - await client.multiGetObjects({ ids, options: { showContent: true } });
-+ await client.core.getObjects({ objectIds: ids, include: { content: true } });
++ await client.getObjects({ objectIds: ids, include: { content: true } });
 ```
 
 ### `include` replaces `options` / `show*` flags
@@ -862,20 +910,20 @@ await client.suins.getNameRecord('example.sui');
 await client.deepbook.checkManagerBalance(manager, asset);
 ```
 
-### Key method renames (JSON-RPC → Core API)
+### Key method renames (JSON-RPC → v2)
 
-| v1 JSON-RPC | v2 Core API |
-|-------------|-------------|
-| `client.getObject()` | `client.core.getObject()` |
-| `client.getOwnedObjects()` | `client.core.listOwnedObjects()` |
-| `client.multiGetObjects()` | `client.core.getObjects()` |
-| `client.getCoins()` | `client.core.listCoins()` |
-| `client.getAllBalances()` | `client.core.listBalances()` |
-| `client.getDynamicFields()` | `client.core.listDynamicFields()` |
-| `client.getDynamicFieldObject()` | `client.core.getDynamicField()` |
-| `client.getTransactionBlock()` | `client.core.getTransaction()` |
-| `client.devInspectTransactionBlock()` | `client.core.simulateTransaction()` |
-| `client.executeTransactionBlock()` | `client.core.executeTransaction()` |
+| v1 JSON-RPC | v2 (top-level on concrete client) |
+|-------------|----------------------------------|
+| `client.getObject()` | `client.getObject()` (new params: `objectId`, `include`) |
+| `client.getOwnedObjects()` | `client.listOwnedObjects()` |
+| `client.multiGetObjects()` | `client.getObjects()` |
+| `client.getCoins()` | `client.listCoins()` |
+| `client.getAllBalances()` | `client.listBalances()` |
+| `client.getDynamicFields()` | `client.listDynamicFields()` |
+| `client.getDynamicFieldObject()` | `client.getDynamicField()` |
+| `client.getTransactionBlock()` | `client.getTransaction()` |
+| `client.devInspectTransactionBlock()` | `client.simulateTransaction()` |
+| `client.executeTransactionBlock()` | `client.executeTransaction()` |
 
 ### Full migration guide
 
