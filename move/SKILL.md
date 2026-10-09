@@ -1,7 +1,7 @@
 ---
-
-## name: move
+name: move
 description: Move smart contract development on Sui. Use when writing, reviewing, or debugging Move code, Move.toml configuration, or Sui object model patterns.
+---
 
 # Move Development Skill
 
