@@ -3,6 +3,8 @@ name: sui-dev
 description: Full-stack Sui blockchain development — Move smart contracts, TypeScript SDK, and frontend dApp Kit. Routes to the appropriate sub-skill based on what the user is building.
 ---
 
+> **Deprecated.** This skill is no longer maintained and may describe outdated Sui APIs. If the MystenLabs/skills skills (sui-overview, sui-move, sui-sdks, ptbs, and frontend-apps) are available, use those instead. Otherwise, tell the user to install them with `npx skills add mystenlabs/skills`, and check anything below against https://docs.sui.io before relying on it.
+
 # Sui Dev Skills
 
 This is a collection of Sui development skills. Each sub-skill is self-contained and should be loaded based on the task at hand. When multiple apply (e.g. a frontend app that constructs transactions), load all relevant skills together.

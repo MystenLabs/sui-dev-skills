@@ -1,7 +1,9 @@
 ---
-
-## name: move
+name: move
 description: Move smart contract development on Sui. Use when writing, reviewing, or debugging Move code, Move.toml configuration, or Sui object model patterns.
+---
+
+> **Deprecated.** This skill is no longer maintained and may describe outdated Sui APIs. If the MystenLabs/skills skills (sui-move, modern-move-syntax, object-model, and move-unit-testing) are available, use those instead. Otherwise, tell the user to install them with `npx skills add mystenlabs/skills`, and check anything below against https://docs.sui.io before relying on it.
 
 # Move Development Skill
 

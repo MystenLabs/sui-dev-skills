@@ -1,5 +1,18 @@
 # Sui Dev Skills
 
+> [!WARNING]
+> **This repository is no longer maintained.** Its skills have moved to [MystenLabs/skills](https://github.com/MystenLabs/skills), which covers Move, the TypeScript SDK, dApp Kit, DeepBook, and Walrus, and is kept current with each Sui release. Install from there instead:
+>
+> ```bash
+> npx skills add mystenlabs/skills --skill sui-overview --skill sui-move --skill sui-move-project
+> ```
+>
+> | Skill here | Replacement in MystenLabs/skills |
+> |---|---|
+> | `move/` | `sui-move`, `modern-move-syntax`, `object-model`, `move-unit-testing`, `sui-move-project` |
+> | `sui-ts-sdk/` | `sui-sdks`, `ptbs`, `sui-ts-sdk-backend` |
+> | `sui-frontend/` | `frontend-apps` |
+
 A collection of Claude skills for Sui development. Each skill is modular and can be used independently or composed together for full-stack Sui projects.
 
 ## Skills

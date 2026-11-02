@@ -3,6 +3,8 @@ name: sui-ts-sdk
 description: Sui TypeScript SDK — PTB construction, client setup, transaction execution, and on-chain queries. Use when writing code that interacts with the Sui blockchain via @mysten/sui. These patterns apply in both backend scripts and frontend apps. For frontend-specific setup (dApp Kit, wallet adapters, React hooks), use the sui-frontend skill first or alongside this one.
 ---
 
+> **Deprecated.** This skill is no longer maintained and may describe outdated Sui APIs. If the MystenLabs/skills skills (sui-sdks, ptbs, and sui-ts-sdk-backend) are available, use those instead. Otherwise, tell the user to install them with `npx skills add mystenlabs/skills`, and check anything below against https://docs.sui.io before relying on it.
+
 # Sui TypeScript SDK Skill
 
 You are writing TypeScript code that interacts with the Sui blockchain using the `@mysten/sui` SDK (v2+). Follow these rules precisely. This skill covers PTB (Programmable Transaction Block) construction, client setup, transaction execution, and on-chain queries. These patterns apply equally in backend scripts and frontend apps. If you are building a frontend, use the **sui-frontend** skill first (or alongside this one) for dApp Kit setup, wallet connection, and React integration — then apply the PTB and client patterns from this skill.

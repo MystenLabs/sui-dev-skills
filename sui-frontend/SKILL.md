@@ -3,6 +3,8 @@ name: sui-frontend
 description: Sui frontend dApp development with @mysten/dapp-kit-react (React) and @mysten/dapp-kit-core (Vue, vanilla JS, other frameworks). Use when building browser apps that connect to Sui wallets, query on-chain data, or execute transactions. Use alongside the sui-ts-sdk skill for PTB construction patterns.
 ---
 
+> **Deprecated.** This skill is no longer maintained and may describe outdated Sui APIs. If the MystenLabs/skills skills (frontend-apps) are available, use those instead. Otherwise, tell the user to install them with `npx skills add mystenlabs/skills`, and check anything below against https://docs.sui.io before relying on it.
+
 # Sui Frontend Skill
 
 This skill covers building browser-based Sui dApps using the dApp Kit SDK. The SDK has two packages:
