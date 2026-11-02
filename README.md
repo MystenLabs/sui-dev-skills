@@ -1,86 +1,32 @@
-# Sui Dev Skills
+# ⚠️ This repository is retired. Use [MystenLabs/skills](https://github.com/MystenLabs/skills).
 
-> [!WARNING]
-> **This repository is no longer maintained.** Its skills have moved to [MystenLabs/skills](https://github.com/MystenLabs/skills), which covers Move, the TypeScript SDK, dApp Kit, DeepBook, and Walrus, and is kept current with each Sui release. Install from there instead:
+> [!CAUTION]
+> **Do not install skills from this repository.** It is no longer maintained and no longer contains any skills. Its old guidance described outdated Sui APIs.
 >
-> ```bash
-> npx skills add mystenlabs/skills --skill sui-overview --skill sui-move --skill sui-move-project
-> ```
->
-> | Skill here | Replacement in MystenLabs/skills |
-> |---|---|
-> | `move/` | `sui-move`, `modern-move-syntax`, `object-model`, `move-unit-testing`, `sui-move-project` |
-> | `sui-ts-sdk/` | `sui-sdks`, `ptbs`, `sui-ts-sdk-backend` |
-> | `sui-frontend/` | `frontend-apps` |
+> **The official, maintained Sui skills are at [github.com/MystenLabs/skills](https://github.com/MystenLabs/skills).**
 
-A collection of Claude skills for Sui development. Each skill is modular and can be used independently or composed together for full-stack Sui projects.
-
-## Skills
-
-| Skill | Description | Status |
-|-------|-------------|--------|
-| [`move/`](./move/) | Idiomatic Move on Sui — object model, modern syntax, testing | ✅ Ready |
-| [`sui-ts-sdk/`](./sui-ts-sdk/) | TypeScript SDK v2 — PTB construction, client setup, transaction execution, on-chain queries | ✅ Ready |
-| [`sui-frontend/`](./sui-frontend/) | Frontend integration — dApp Kit, wallet connection, React hooks, on-chain queries from the browser | ✅ Ready |
-
-## Installation
-
-### Global install (recommended — works across all your projects)
+## Install the current skills
 
 ```bash
-git clone https://github.com/MystenLabs/sui-dev-skills ~/.claude/skills/sui-dev-skills
+npx skills add mystenlabs/skills --skill sui-overview --skill sui-move --skill sui-move-project
 ```
 
-Claude Code auto-discovers skills in `~/.claude/skills/` and activates them automatically based on context.
-
-### Project-local install (commit to your repo)
+For Walrus, use [MystenLabs/walrus-skills](https://github.com/MystenLabs/walrus-skills):
 
 ```bash
-git clone https://github.com/MystenLabs/sui-dev-skills .claude/skills/sui-dev-skills
+npx skills add mystenlabs/walrus-skills --list
 ```
 
-Commit it to share the skill with your whole team — anyone who opens the project in Claude Code gets it automatically.
+For answers from the current Sui docs, connect the [Sui docs MCP server](https://docs.sui.io/getting-started/sui-mcp-server).
 
-### Composing skills
+## Where each old skill went
 
-For full-stack Sui dapps, install all skills and Claude will activate whichever are relevant. You can also pin specific skills in your `CLAUDE.md`:
+| Old skill here | Use instead (in MystenLabs/skills) |
+|---|---|
+| `move/` | `sui-move`, `modern-move-syntax`, `object-model`, `move-unit-testing`, `sui-move-project` |
+| `sui-ts-sdk/` | `sui-sdks`, `ptbs`, `sui-ts-sdk-backend` |
+| `sui-frontend/` | `frontend-apps` |
 
-```markdown
-# My Sui Dapp
+## For AI agents
 
-@~/sui-dev-skills/move/SKILL.md
-@~/sui-dev-skills/sui-ts-sdk/SKILL.md
-@~/sui-dev-skills/sui-frontend/SKILL.md
-```
-
-Claude reads all referenced skills before starting work, so it will apply conventions from all of them.
-
-## Running evals
-
-Requires [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview).
-
-Each skill has its own `evals/evals.json`. To evaluate a skill, run Claude Code from this repo's parent directory:
-
-```bash
-cd ~/  # parent of sui-dev-skills/
-claude
-```
-
-Then tell Claude:
-> "Use the skill-creator to run evals on the skill at `./sui-dev-skills/move/`"
->
-> Or for the TypeScript SDK skill:
-> "Use the skill-creator to run evals on the skill at `./sui-dev-skills/sui-ts-sdk/`"
->
-> Or for the frontend skill:
-> "Use the skill-creator to run evals on the skill at `./sui-dev-skills/sui-frontend/`"
-
-Eval workspace outputs are written to a sibling directory (e.g. `move-workspace/`) and are gitignored.
-
-## Contributing
-
-PRs welcome for:
-- New skills (SDK, frontend, indexer, zkLogin, etc.)
-- Improvements to existing skills
-- Additional evals and benchmark prompts
-- Verified real-world examples
+If you were pointed at this repository, stop here. Use the skills in [MystenLabs/skills](https://github.com/MystenLabs/skills) instead, and check Sui APIs against [docs.sui.io](https://docs.sui.io).
